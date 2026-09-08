@@ -8,6 +8,7 @@
  */
 import { ValidationError } from '../lib/validate.js';
 import { DuplicateEntryError } from '../db/store.js';
+import { QueueOverflowError } from '../lib/semaphore.js';
 
 /**
  * Gives every request a fire-and-forget `recordEvent` that writes to the
@@ -51,6 +52,11 @@ function classify(err) {
   if (err instanceof DuplicateEntryError) {
     return { status: 409, error: err.code, message: err.message };
   }
+  if (err instanceof QueueOverflowError) {
+    // Shedding load deliberately. Retry-After keeps well-behaved clients from
+    // making the pile-up worse.
+    return { status: 503, error: err.code, message: 'The server is busy. Please try again in a moment.', retryAfter: 5 };
+  }
   if (err?.type === 'entity.too.large') {
     return { status: 413, error: 'payload_too_large', message: 'Request body is too large.' };
   }
@@ -77,7 +83,8 @@ export function errorHandler(logger) {
         method: req.method,
       });
       if (!res.headersSent) {
-        res.status(known.status).json({ ok: false, ...known, status: undefined });
+        if (known.retryAfter) res.setHeader('Retry-After', String(known.retryAfter));
+        res.status(known.status).json({ ok: false, ...known, status: undefined, retryAfter: undefined });
       }
       return;
     }

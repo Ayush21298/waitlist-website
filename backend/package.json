@@ -13,7 +13,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test --test-concurrency=1 test/",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
     "loadtest": "node ../scripts/loadtest.mjs",
     "smoke": "node ../scripts/smoke.mjs"
   },

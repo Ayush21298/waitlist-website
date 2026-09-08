@@ -17,6 +17,7 @@ import { gateRoutes } from './routes/gate.js';
 import { healthRoutes } from './routes/health.js';
 import { publicRoutes } from './routes/public.js';
 import { requestContext } from './middleware/context.js';
+import { AssetCache, compressedStatic, resolveWithin, sendAsset } from './middleware/static.js';
 
 export function createApp({ config, store, auth, logger, startedAt = Date.now() }) {
   const app = express();
@@ -59,23 +60,29 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
   app.use('/api/v1/gate', gate);
 
   const frontend = config.paths.frontendDir;
-  const staticOptions = {
-    // Assets are versioned by deploy, not by name; a short cache keeps a
-    // password change from being masked by a stale page.
-    maxAge: config.isProduction ? '5m' : 0,
-    etag: true,
-    index: false,
-    redirect: false,
-    dotfiles: 'ignore',
-  };
+  // Assets are versioned by deploy, not by name, so the cache window is kept
+  // short: a stale page must never mask a password change.
+  const maxAgeSeconds = config.isProduction ? 300 : 0;
+  const assetCache = new AssetCache();
 
-  // The gate page and its assets are the only unauthenticated UI.
-  app.get('/gate', (req, res) => {
+  /** Serves one known page through the same compressing, caching path. */
+  function sendPage(req, res, next, ...segments) {
+    const file = path.join(frontend, ...segments);
+    const target = resolveWithin(frontend, `/${segments.join('/')}`);
+    if (!target) {
+      next(new Error(`missing frontend asset: ${file}`));
+      return;
+    }
+    sendAsset(req, res, target.file, target.stat, { cache: assetCache, maxAgeSeconds, logger }).catch(next);
+  }
+
+  // The gate page is the only unauthenticated UI.
+  app.get('/gate', (req, res, next) => {
     if (req.gateSession) {
       res.redirect(302, safeRedirect(req.query.next));
       return;
     }
-    res.sendFile(path.join(frontend, 'gate', 'index.html'));
+    sendPage(req, res, next, 'gate', 'index.html');
   });
 
   // ---- everything below requires a gate session ----
@@ -87,21 +94,28 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
   const admin = adminRoutes({ config, store, auth, logger });
   app.use('/api/v1/admin', admin);
 
-  // The admin login page is behind the gate but ahead of the admin password.
-  app.get(['/admin', '/admin/'], (req, res) => {
-    res.sendFile(path.join(frontend, 'admin', 'index.html'));
-  });
-  app.get('/admin/login', (req, res) => {
-    res.sendFile(path.join(frontend, 'admin', 'index.html'));
+  // The admin panel is behind the gate but ahead of the admin password; the
+  // page itself decides which of its two views to show.
+  app.get(['/admin', '/admin/', '/admin/login'], (req, res, next) => {
+    sendPage(req, res, next, 'admin', 'index.html');
   });
 
-  app.use('/admin', express.static(path.join(frontend, 'admin'), staticOptions));
-  app.use('/shared', express.static(path.join(frontend, 'shared'), staticOptions));
+  app.use('/admin', compressedStatic({ root: path.join(frontend, 'admin'), maxAgeSeconds, cache: assetCache, logger }));
+  app.use('/shared', compressedStatic({ root: path.join(frontend, 'shared'), maxAgeSeconds, cache: assetCache, logger }));
 
   // Each app's frontend is served at /a/<slug>/. Serving them under one
   // prefix keeps every tenant same-origin with the API, so cookies and CSRF
   // work without any cross-origin configuration.
-  app.use('/a', express.static(path.join(frontend, 'apps'), { ...staticOptions, index: 'index.html' }));
+  app.use(
+    '/a',
+    compressedStatic({
+      root: path.join(frontend, 'apps'),
+      index: 'index.html',
+      maxAgeSeconds,
+      cache: assetCache,
+      logger,
+    }),
+  );
 
   // The root redirects to the default app so the deployment has a front door.
   app.get('/', (req, res) => {

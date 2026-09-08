@@ -30,14 +30,20 @@ export function requestContext(config, logger) {
 
     req.log = logger.child({ requestId: req.id, ipHash: req.ipHash });
 
+    // Captured now, before routing. Express rewrites req.url as a request
+    // descends into a mounted router, so reading req.path when the response
+    // finishes yields the router-relative path -- '/login' rather than
+    // '/api/v1/admin/login' -- which makes the access log ambiguous and
+    // useless for aggregation. The query string is dropped: it can carry
+    // personal data and adds nothing to the log.
+    const fullPath = (req.originalUrl || req.url || '').split('?')[0];
+
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
       const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
       req.log.log(level, 'http request', {
         method: req.method,
-        // The routed path, not the raw URL: query strings can carry personal
-        // data and the route is what aggregates usefully.
-        path: req.path,
+        path: fullPath,
         route: req.route?.path,
         status: res.statusCode,
         durationMs: Math.round(durationMs * 100) / 100,

@@ -15,6 +15,7 @@
 import crypto from 'node:crypto';
 
 import { csrfToken as newCsrfToken, hashPassword, randomToken, shortId, tokenDigest, verifyPassword } from '../lib/crypto.js';
+import { Semaphore } from '../lib/semaphore.js';
 
 export const GATE_COOKIE = 'wl_gate';
 export const ADMIN_COOKIE = 'wl_admin';
@@ -81,16 +82,22 @@ export class AuthService {
   #store;
   #logger;
   #hashes = { gate: null, admin: null };
+  #hashLimiter;
 
   constructor({ config, store, logger }) {
     this.#config = config;
     this.#store = store;
     this.#logger = logger;
+    this.#hashLimiter = new Semaphore({
+      permits: config.auth.maxConcurrentHashes,
+      maxQueue: config.auth.maxQueuedHashes,
+    });
   }
 
   /** Derives the password hashes. Must be awaited before serving traffic. */
   async init() {
     const params = this.#config.auth.scrypt;
+    // Derivation at boot bypasses the limiter: nothing is being served yet.
     this.#hashes.gate = await hashPassword(this.#config.auth.siteGatePassword, params);
     this.#hashes.admin = await hashPassword(this.#config.auth.adminPassword, params);
     this.#logger.info('auth initialised', {
@@ -119,10 +126,22 @@ export class AuthService {
     return kind === 'admin' ? 'Strict' : 'Lax';
   }
 
+  /**
+   * Verifies a password, with concurrency capped.
+   *
+   * The cap is what keeps a login burst from monopolising the thread pool
+   * that also serves file reads; the bounded queue behind it turns a login
+   * flood into fast refusals rather than an ever-growing backlog.
+   */
   async verifyPasswordFor(kind, candidate) {
     const encoded = kind === 'admin' ? this.#hashes.admin : this.#hashes.gate;
     if (!encoded) throw new Error('AuthService.init() was not awaited');
-    return verifyPassword(candidate, encoded, this.#config.auth.scrypt);
+    return this.#hashLimiter.run(() => verifyPassword(candidate, encoded, this.#config.auth.scrypt));
+  }
+
+  /** Exposed for the health and overview endpoints. */
+  get hashQueueDepth() {
+    return this.#hashLimiter.queued;
   }
 
   /**

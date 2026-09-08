@@ -196,6 +196,11 @@ export function buildConfig(env = process.env) {
       gateSessionTtlMs: int('GATE_SESSION_TTL_MS', 12 * 60 * 60 * 1000),
       adminSessionTtlMs: int('ADMIN_SESSION_TTL_MS', 8 * 60 * 60 * 1000),
       adminIdleTimeoutMs: int('ADMIN_IDLE_TIMEOUT_MS', 45 * 60 * 1000),
+      // Concurrent password verifications. scrypt runs on the libuv thread
+      // pool, which also serves file reads, so an unbounded login burst
+      // starves page serving. See lib/semaphore.js.
+      maxConcurrentHashes: int('MAX_CONCURRENT_HASHES', 2),
+      maxQueuedHashes: int('MAX_QUEUED_HASHES', 64),
       // scrypt parameters for password verification (OWASP-aligned).
       scrypt: {
         N: int('SCRYPT_N', 2 ** 15),
