@@ -56,7 +56,13 @@ export function securityHeaders(config) {
     // attacker which stack to target.
     res.removeHeader('X-Powered-By');
 
-    if (config.isProduction) {
+    // Sent whenever the request actually arrived over HTTPS, rather than only
+    // when NODE_ENV says production. A tunnelled or staging deployment is
+    // still a real HTTPS connection and should still be pinned; a plain-HTTP
+    // localhost run is not, and must not be, or the browser remembers the
+    // pin and makes local development unreachable. This is the same rule the
+    // Secure cookie flag uses, so the two never disagree.
+    if (config.isProduction || req.secure) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
 

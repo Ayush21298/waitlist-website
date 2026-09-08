@@ -784,12 +784,23 @@ footer a{color:var(--sub);text-decoration:none}
   var current = null;
 
   function fmt(n){ return n.toLocaleString('ko-KR'); }
+
+  /* 카운터 애니메이션 세대 번호.
+     최초 로딩 애니메이션은 900ms 동안 매 프레임 숫자를 덮어씁니다. 그 사이에
+     등록이 끝나면 새 순번을 써넣어도 남아있던 이전 애니메이션이 다시 옛 숫자로
+     되돌려 버립니다. 세대 번호가 바뀌면 이전 루프는 스스로 멈춥니다. */
+  var countGen = 0;
+
   function showCount(n, animate){
     current = n; counterEl.classList.remove('loading');
+    var gen = ++countGen;
     if (!animate || reduce){ countEl.textContent = fmt(n); return; }
     var t0 = null, dur = 900;
-    function tick(t){ if (!t0) t0 = t; var p = Math.min(1,(t-t0)/dur); p = 1-Math.pow(1-p,3);
-      countEl.textContent = fmt(Math.round(n*p)); if (p<1) requestAnimationFrame(tick); }
+    function tick(t){
+      if (gen !== countGen) return;          // 더 최신 업데이트가 우선합니다.
+      if (!t0) t0 = t; var p = Math.min(1,(t-t0)/dur); p = 1-Math.pow(1-p,3);
+      countEl.textContent = fmt(Math.round(n*p)); if (p<1) requestAnimationFrame(tick);
+    }
     requestAnimationFrame(tick);
   }
   function loadCount(){

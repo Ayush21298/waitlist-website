@@ -683,12 +683,19 @@
     var y = function(v){ return padT + innerH - (v / top) * innerH; };
 
     // Gridlines and y labels, recessive by design.
-    [0, 0.5, 1].forEach(function(f){
-      var value = top * f;
+    //
+    // Ticks are rounded first and then de-duplicated. Signup counts are whole
+    // numbers, so on a low-traffic day the midpoint of a 0..1 axis rounds to
+    // the same label as the top and the axis reads "1, 1, 0".
+    var ticks = [0, top / 2, top]
+      .map(function(v){ return Math.round(v); })
+      .filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+
+    ticks.forEach(function(value){
       var yy = y(value);
       svg.appendChild(svgEl('line', { class: 'grid-line', x1: padL, x2: W - padR, y1: yy, y2: yy }));
       var label = svgEl('text', { class: 'axis-text', x: padL - 8, y: yy + 3.5, 'text-anchor': 'end' });
-      label.textContent = String(Math.round(value));
+      label.textContent = String(value);
       svg.appendChild(label);
     });
 
