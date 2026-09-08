@@ -150,9 +150,11 @@ It exists mainly to get two settings right that are silently wrong otherwise:
 `CORS_ALLOWED_ORIGINS`, because Cloudflare rewrites the `Host` header and the
 server would otherwise refuse every write as cross-origin.
 
-> If your own network cannot resolve the `trycloudflare.com` name, the script
-> says so explicitly and prints a `curl --resolve` command. Other devices are
-> unaffected — it is a local DNS problem, not a broken tunnel.
+> If the URL does not open, it is almost always DNS filtering on your own
+> network rather than a broken tunnel — many ISP and corporate resolvers block
+> `*.trycloudflare.com` because those tunnels are abused for phishing. The
+> script detects exactly that and prints the fixes. See
+> [DEPLOYMENT.md](DEPLOYMENT.md#if-the-tunnel-url-does-not-open).
 
 ## Testing
 

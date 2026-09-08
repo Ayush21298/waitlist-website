@@ -136,6 +136,48 @@ starts the server configured correctly for being behind a proxy. It is a
 demo tool, not a hosting option: the URL dies with the command, and the
 tunnel is infrastructure you do not control.
 
+### If the tunnel URL does not open
+
+Almost always this is DNS filtering on your own network, not a broken tunnel.
+Cloudflare quick tunnels are heavily abused for phishing, so many ISP, campus
+and corporate resolvers return NXDOMAIN for `*.trycloudflare.com` while still
+resolving `trycloudflare.com` itself. `npm run share` detects this case and
+says so explicitly rather than reporting a working tunnel as dead.
+
+Confirm it in one command — if the first fails and the second succeeds, it is
+your resolver:
+
+```bash
+getent hosts <name>.trycloudflare.com          # your network's answer
+dig +short @1.1.1.1 <name>.trycloudflare.com   # the public answer
+```
+
+Three fixes, least invasive first:
+
+1. **Open the link on another network** — a phone on mobile data rather than
+   Wi-Fi. Nothing to change, and it confirms the tunnel is fine.
+2. **Turn on Secure DNS (DoH) in your browser**, which bypasses the network
+   resolver for the browser only and needs no administrator rights.
+   Chrome: *Settings → Privacy and security → Security → Use secure DNS*.
+   Firefox: *Settings → Privacy & Security → DNS over HTTPS*.
+3. **Route just that one domain to a public resolver**, leaving all other DNS
+   — including internal hostnames — on your network's server. On a
+   systemd-resolved system, create
+   `/etc/systemd/resolved.conf.d/trycloudflare.conf`:
+
+   ```ini
+   [Resolve]
+   DNS=1.1.1.1 1.0.0.1
+   Domains=~trycloudflare.com
+   ```
+
+   then `sudo systemctl restart systemd-resolved && resolvectl flush-caches`.
+   The `~` prefix makes it a *routing* domain, so only names ending in
+   `trycloudflare.com` are affected. Remove the file to undo.
+
+None of this affects a real deployment: a deployed site is on your own
+hostname, not a tunnel domain.
+
 ---
 
 ## Before you go live

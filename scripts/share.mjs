@@ -170,6 +170,16 @@ function lastLines(file, count) {
  * working tunnel as broken, and the obvious next step -- re-running it --
  * would not help.
  */
+/** The system's current upstream resolver, for the diagnostic message. */
+async function currentResolver() {
+  try {
+    const servers = dns.getServers();
+    return servers[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolvePublicly(hostname) {
   const resolver = new dns.Resolver();
   resolver.setServers(['1.1.1.1', '8.8.8.8']);
@@ -182,25 +192,42 @@ async function resolvePublicly(hostname) {
 }
 
 /**
- * @returns {'reachable'|'local-dns'|'unreachable'}
+ * Works out what is actually wrong, by asking DNS directly rather than
+ * inferring it from the shape of a fetch error.
+ *
+ * The order matters: a name this machine cannot resolve is a different
+ * problem from a name it can resolve but cannot reach, and the two need
+ * completely different advice.
+ *
+ * @returns {'reachable'|'local-dns'|'no-dns'|'unreachable'}
  */
 async function waitForPublicUrl(url) {
   const hostname = new URL(url).hostname;
-  let sawDnsFailure = false;
 
-  for (let attempt = 0; attempt < 45; attempt += 1) {
+  // Give the name a little time to appear; a fresh tunnel is not instant.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await dns.lookup(hostname);
+      break;
+    } catch {
+      if (attempt === 19) {
+        // This machine cannot resolve it. Can anyone?
+        return (await resolvePublicly(hostname)) ? 'local-dns' : 'no-dns';
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  // The name resolves here, so any remaining failure is a real one.
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
       const response = await fetch(`${url}/healthz`, { redirect: 'manual' });
       if (response.ok) return 'reachable';
-    } catch (err) {
-      if (err?.cause?.code === 'ENOTFOUND' || err?.cause?.code === 'EAI_AGAIN') sawDnsFailure = true;
+    } catch {
+      // Not serving yet.
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-
-  // If this machine could not resolve it but the public internet can, the
-  // tunnel is fine and only local name resolution is at fault.
-  if (sawDnsFailure && (await resolvePublicly(hostname))) return 'local-dns';
   return 'unreachable';
 }
 
@@ -241,16 +268,55 @@ try {
   } else if (status === 'local-dns') {
     const hostname = new URL(publicUrl).hostname;
     const address = await resolvePublicly(hostname);
+    const resolver = await currentResolver();
+
     console.log(
-      `\nThe tunnel is up and the name resolves publicly (${address}), but\n` +
-        "THIS machine's DNS resolver cannot see it yet. Other devices -- your\n" +
-        'phone, or anyone you send the link to -- will reach it normally.\n\n' +
-        'To test from this machine anyway:\n' +
+      '\n' +
+        'THE TUNNEL IS WORKING. Your own network cannot look up its name.\n' +
+        '\n' +
+        `  The name resolves fine on public DNS      ${address}\n` +
+        `  Your resolver${resolver ? ` (${resolver})` : ''} returns NXDOMAIN\n` +
+        '\n' +
+        'Cloudflare quick tunnels are heavily abused for phishing, so many\n' +
+        'ISP, campus and corporate resolvers block *.trycloudflare.com while\n' +
+        'still resolving trycloudflare.com itself. That is what is happening\n' +
+        'here, and it affects only devices using that resolver.\n' +
+        '\n' +
+        'Three ways round it, easiest first:\n' +
+        '\n' +
+        '  1. Open the link on your phone using mobile data rather than\n' +
+        '     Wi-Fi. A different resolver will almost certainly work, and\n' +
+        '     this needs no changes to anything.\n' +
+        '\n' +
+        '  2. Turn on Secure DNS (DNS-over-HTTPS) in your browser, which\n' +
+        '     bypasses the network resolver entirely and fixes every future\n' +
+        '     tunnel too:\n' +
+        '       Chrome   Settings -> Privacy and security -> Security ->\n' +
+        '                Use secure DNS -> With: Cloudflare (1.1.1.1)\n' +
+        '       Firefox  Settings -> Privacy & Security -> DNS over HTTPS ->\n' +
+        '                Increased Protection\n' +
+        '\n' +
+        '  3. Point this one name at the address yourself, for this session:\n' +
+        `       echo "${address}  ${hostname}" | sudo tee -a /etc/hosts\n` +
+        '     Remove that line when you are done; the name changes every run.\n' +
+        '\n' +
+        'To confirm from this machine without changing anything:\n' +
         `  curl --resolve ${hostname}:443:${address} ${publicUrl}/healthz\n`,
     );
+  } else if (status === 'no-dns') {
+    console.log(
+      '\nThe tunnel reported a URL but the name does not resolve anywhere,\n' +
+        'including on public DNS. That is a Cloudflare-side registration\n' +
+        'failure. Stop and re-run.\n' +
+        `cloudflared's own log: ${TUNNEL_LOG}`,
+    );
+    for (const line of lastLines(TUNNEL_LOG, 8)) console.log(`  ${line}`);
+    console.log('');
   } else {
     console.log(
-      '\nThe tunnel opened but the URL never answered. This is usually a\n' +
+      '\nThe name resolves but the URL never answered, so the tunnel is not\n' +
+        'reaching your local server. Check that it is listening on the port\n' +
+        'shown above.\n' +
         'transient Cloudflare quick-tunnel failure — stop and re-run.\n' +
         `cloudflared's own log: ${TUNNEL_LOG}`,
     );
