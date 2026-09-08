@@ -162,6 +162,17 @@ export class AuthService {
   }
 
   async createSession(kind, req, res) {
+    // Retire whatever session this client already held. Signing in again
+    // otherwise leaves the previous session valid until it expires, so a
+    // cookie captured earlier would keep working long after the user
+    // (perhaps re-authenticating for exactly that reason) logged back in.
+    const previous = req.cookies?.[this.#cookieName(kind)];
+    if (previous) {
+      const dot = previous.indexOf('.');
+      const previousId = dot > 0 ? previous.slice(0, dot) : '';
+      if (previousId) await this.#store.revokeSession(previousId);
+    }
+
     const id = shortId();
     const token = randomToken(32);
     const csrf = newCsrfToken();

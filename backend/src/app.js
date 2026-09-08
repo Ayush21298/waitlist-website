@@ -42,10 +42,11 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
   app.use(
     express.json({
       limit: config.server.bodyLimitBytes,
-      // The landing page posts as text/plain to dodge a CORS preflight, a
-      // habit inherited from Apps Script endpoints. Both are parsed as JSON;
-      // the origin check is what actually protects these routes.
-      type: ['application/json', 'text/plain'],
+      // application/json only. text/plain would also parse, but accepting it
+      // lets a browser send a cross-origin POST as a "simple request" with no
+      // preflight -- the origin check would still refuse it, but requiring
+      // JSON means the browser refuses it first, one layer earlier.
+      type: 'application/json',
     }),
   );
 

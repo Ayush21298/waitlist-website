@@ -220,3 +220,51 @@ describe('login lockout', () => {
     }
   });
 });
+
+describe('session hygiene', () => {
+  test('signing in again retires the previous session', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      const firstCookie = client.cookies.get('wl_gate');
+
+      // A second sign-in from the same client, as happens when someone
+      // re-authenticates because they suspect their session was captured.
+      await client.unlockGate();
+      const secondCookie = client.cookies.get('wl_gate');
+      assert.notEqual(firstCookie, secondCookie, 'a new session should be issued');
+
+      // The captured cookie must no longer work.
+      const attacker = isolated.client();
+      attacker.cookies.set('wl_gate', firstCookie);
+      const replay = await attacker.get('/api/v1/apps/pages/count');
+      assert.equal(replay.status, 401, 'the superseded session must be revoked');
+
+      // The current one still does.
+      const current = await client.get('/api/v1/apps/pages/count');
+      assert.equal(current.status, 200);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('session cookies carry the expected attributes', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      const response = await client.post('/api/v1/gate/login', { password: GATE_PASSWORD });
+      const [cookie] = response.headers.getSetCookie();
+      assert.match(cookie, /HttpOnly/, 'must not be readable from JavaScript');
+      assert.match(cookie, /SameSite=Lax/, 'the gate cookie is Lax so inbound links work');
+      assert.match(cookie, /Path=\//);
+
+      const adminResponse = await client.post('/api/v1/admin/login', { password: ADMIN_PASSWORD });
+      const adminCookie = adminResponse.headers.getSetCookie().find((c) => c.startsWith('wl_admin'));
+      assert.match(adminCookie, /HttpOnly/);
+      assert.match(adminCookie, /SameSite=Strict/, 'the admin cookie takes the stricter setting');
+    } finally {
+      await isolated.stop();
+    }
+  });
+});
