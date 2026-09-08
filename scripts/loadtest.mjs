@@ -22,8 +22,15 @@ for (let i = 2; i < process.argv.length; i += 2) {
 const BASE = args.get('base') ?? 'http://127.0.0.1:8099';
 const DEVICES = Number(args.get('devices') ?? 25);
 const SECONDS = Number(args.get('seconds') ?? 20);
-const GATE_PASSWORD = args.get('gate-password') ?? process.env.SITE_GATE_PASSWORD ?? 'ayushr2p';
+// Never defaulted to a literal: a password baked into a committed script is
+// a password published to everyone who can read the repository.
+const GATE_PASSWORD = args.get('gate-password') ?? process.env.SITE_GATE_PASSWORD;
 const APP = args.get('app') ?? 'pages';
+
+if (!GATE_PASSWORD) {
+  console.error('Pass --gate-password, or set SITE_GATE_PASSWORD in the environment.');
+  process.exit(2);
+}
 
 /** Per-endpoint latency samples and outcome counters. */
 const stats = new Map();
