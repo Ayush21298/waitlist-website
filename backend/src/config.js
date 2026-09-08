@@ -16,33 +16,44 @@ export const ROOT = path.resolve(HERE, '..', '..');
 /** Collected at load time and reported by the logger once it exists. */
 export const configWarnings = [];
 
-function str(name, fallback = undefined) {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  return raw;
-}
+/**
+ * Typed readers bound to one environment object.
+ *
+ * Bound rather than reading `process.env` directly so that `buildConfig(env)`
+ * genuinely honours its argument: tests boot isolated servers with their own
+ * passwords and paths, and must not silently inherit the developer's .env.
+ */
+function readers(env) {
+  const str = (name, fallback = undefined) => {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    return raw;
+  };
 
-function int(name, fallback) {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) throw new ConfigError(`${name} must be an integer, got "${raw}"`);
-  return n;
-}
+  const int = (name, fallback) => {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isFinite(n)) throw new ConfigError(`${name} must be an integer, got "${raw}"`);
+    return n;
+  };
 
-function bool(name, fallback) {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const v = raw.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(v)) return true;
-  if (['0', 'false', 'no', 'off'].includes(v)) return false;
-  throw new ConfigError(`${name} must be a boolean, got "${raw}"`);
-}
+  const bool = (name, fallback) => {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const v = String(raw).trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+    if (['0', 'false', 'no', 'off'].includes(v)) return false;
+    throw new ConfigError(`${name} must be a boolean, got "${raw}"`);
+  };
 
-function list(name, fallback = []) {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const list = (name, fallback = []) => {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  };
+
+  return { str, int, bool, list };
 }
 
 export class ConfigError extends Error {
@@ -88,7 +99,7 @@ export function loadDotEnv(file = path.join(ROOT, '.env')) {
 const MIN_SECRET_BYTES = 32;
 const MIN_PASSWORD_LENGTH = 8;
 
-function requireSecret(name, { isProduction, minLength = MIN_SECRET_BYTES }) {
+function requireSecret(str, name, { isProduction, minLength = MIN_SECRET_BYTES }) {
   const value = str(name);
   if (value) {
     if (value.length < minLength) {
@@ -112,7 +123,7 @@ function requireSecret(name, { isProduction, minLength = MIN_SECRET_BYTES }) {
   return generated;
 }
 
-function requirePassword(name, { isProduction }) {
+function requirePassword(str, name, { isProduction }) {
   const value = str(name);
   if (!value) {
     throw new ConfigError(
@@ -129,6 +140,8 @@ function requirePassword(name, { isProduction }) {
 }
 
 export function buildConfig(env = process.env) {
+  const { str, int, bool, list } = readers(env);
+
   const nodeEnv = env.NODE_ENV || 'development';
   const isProduction = nodeEnv === 'production';
   const isTest = nodeEnv === 'test';
@@ -174,12 +187,12 @@ export function buildConfig(env = process.env) {
 
     auth: {
       siteGateEnabled: bool('SITE_GATE_ENABLED', true),
-      siteGatePassword: requirePassword('SITE_GATE_PASSWORD', { isProduction }),
-      adminPassword: requirePassword('ADMIN_PASSWORD', { isProduction }),
-      sessionSecret: requireSecret('SESSION_SECRET', { isProduction }),
+      siteGatePassword: requirePassword(str, 'SITE_GATE_PASSWORD', { isProduction }),
+      adminPassword: requirePassword(str, 'ADMIN_PASSWORD', { isProduction }),
+      sessionSecret: requireSecret(str, 'SESSION_SECRET', { isProduction }),
       // Separate salt so that a leaked log file cannot be correlated with
       // session material, and IPs cannot be reversed by brute force alone.
-      ipHashSecret: requireSecret('IP_HASH_SECRET', { isProduction }),
+      ipHashSecret: requireSecret(str, 'IP_HASH_SECRET', { isProduction }),
       gateSessionTtlMs: int('GATE_SESSION_TTL_MS', 12 * 60 * 60 * 1000),
       adminSessionTtlMs: int('ADMIN_SESSION_TTL_MS', 8 * 60 * 60 * 1000),
       adminIdleTimeoutMs: int('ADMIN_IDLE_TIMEOUT_MS', 45 * 60 * 1000),
