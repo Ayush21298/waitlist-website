@@ -1,0 +1,31 @@
+# ---- secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- dependencies ----
+node_modules/
+.npm/
+
+# ---- runtime data & logs ----
+data/
+logs/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# ---- build / tooling ----
+coverage/
+.nyc_output/
+dist/
+tmp/
+*.tsbuildinfo
+
+# ---- editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
