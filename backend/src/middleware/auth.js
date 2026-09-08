@@ -345,9 +345,17 @@ export function requireCsrf() {
   };
 }
 
-/** True when the caller expects JSON rather than a page. */
+/**
+ * True when the caller expects JSON rather than a page.
+ *
+ * Uses originalUrl, not path: inside a mounted router `req.path` is relative
+ * to the mount point, so an unauthenticated call to /api/v1/admin/overview
+ * sees only "/overview" and would be answered with a redirect to a login page
+ * instead of a 401 the client can act on.
+ */
 function wantsJson(req) {
-  if (req.path.startsWith('/api/')) return true;
+  const fullPath = req.originalUrl ?? req.path ?? '';
+  if (fullPath.startsWith('/api/')) return true;
   if (req.xhr) return true;
   const accept = req.get('accept') ?? '';
   return accept.includes('application/json') && !accept.includes('text/html');

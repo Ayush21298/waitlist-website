@@ -235,6 +235,11 @@ export function buildConfig(env = process.env) {
       eventRetentionDays: int('EVENT_RETENTION_DAYS', 365),
     },
 
+    apps: {
+      // Where `/` sends visitors. Must match a slug in the apps table.
+      defaultSlug: str('DEFAULT_APP_SLUG', 'pages'),
+    },
+
     limits: {
       maxNameLength: int('MAX_NAME_LENGTH', 80),
       maxEmailLength: int('MAX_EMAIL_LENGTH', 254),
