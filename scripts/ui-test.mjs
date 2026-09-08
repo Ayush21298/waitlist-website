@@ -165,6 +165,9 @@ try {
   check('the confirmation echoes the email', (await page.locator('#done-email').innerText()) === testEmail);
   check('the phone row is revealed when a phone was given',
     await page.locator('#done-phone-row').isVisible());
+  // The confirmation fades in over 500ms; capturing mid-animation makes the
+  // screenshot look washed out and misrepresents the design.
+  await page.waitForTimeout(800);
   await shot(page, '04-signup-done');
 
   // The counter should have moved to include this signup.

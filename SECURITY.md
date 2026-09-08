@@ -150,11 +150,19 @@ Referrer-Policy: strict-origin-when-cross-origin
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Resource-Policy: same-origin
 Permissions-Policy: accelerometer=(), camera=(), geolocation=(), ...
-Strict-Transport-Security: max-age=31536000; includeSubDomains   (production)
+Strict-Transport-Security: max-age=31536000; includeSubDomains   (over HTTPS)
 ```
 
 `X-Powered-By` is removed: there is no reason to tell an attacker which stack
 to target.
+
+HSTS is sent whenever the request actually arrived over HTTPS, rather than
+only when `NODE_ENV` says production — a tunnelled or staging deployment is
+still a real HTTPS connection and should still be pinned. It is withheld over
+plain HTTP, because a browser that records the pin for `localhost` makes local
+development unreachable. This is the same rule the `Secure` cookie flag uses,
+so the two cannot disagree. A forged `X-Forwarded-Proto` cannot trigger it
+when no proxy is trusted; both directions are covered by tests.
 
 **A known weakness:** `script-src` and `style-src` allow `'unsafe-inline'`,
 because the landing page inlines its styles and its script. That is a real
@@ -238,6 +246,10 @@ trustworthy.
   Existing sessions survive; change `SESSION_SECRET` too to force everyone out.
 - Watch for `gate.locked_out`, `admin.login_failed` and `admin.csrf_rejected`
   in the activity log. A run of them is worth looking at.
+- `npm run share` puts the site on the public internet. The site password
+  still applies, but the URL is guessable-by-nobody rather than secret, and
+  the tunnel is unauthenticated infrastructure you do not control. Use it for
+  a demo, not as a way to run the service.
 
 ## Reporting a vulnerability
 

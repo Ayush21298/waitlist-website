@@ -29,3 +29,7 @@ tmp/
 Thumbs.db
 *.swp
 *~
+
+# screenshots from the browser test
+shots/
+screenshots/

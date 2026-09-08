@@ -122,6 +122,22 @@ failure mode than Neon's automatic scale-to-zero.
 
 ---
 
+## Testing it from another device before you deploy
+
+If you only want to check the site on your phone, or show it to someone for a
+few minutes, you do not need to deploy at all:
+
+```bash
+npm run share
+```
+
+This opens a temporary public HTTPS URL through a Cloudflare quick tunnel and
+starts the server configured correctly for being behind a proxy. It is a
+demo tool, not a hosting option: the URL dies with the command, and the
+tunnel is infrastructure you do not control.
+
+---
+
 ## Before you go live
 
 - [ ] `SITE_GATE_PASSWORD` and `ADMIN_PASSWORD` set, and different from each

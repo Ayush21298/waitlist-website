@@ -132,20 +132,57 @@ being identical are all fatal at boot.
 
 ---
 
+## Showing it to someone
+
+To open the site on your phone, or hand it to a colleague for ten minutes:
+
+```bash
+npm run share
+```
+
+That publishes the local server on a temporary public HTTPS URL via a
+Cloudflare quick tunnel — no account, no card, no signup. The site password
+still applies, so the URL being public does not make the site public. Stop it
+with Ctrl-C and the URL disappears.
+
+It exists mainly to get two settings right that are silently wrong otherwise:
+`TRUST_PROXY_HOPS`, without which every visitor looks like one client, and
+`CORS_ALLOWED_ORIGINS`, because Cloudflare rewrites the `Host` header and the
+server would otherwise refuse every write as cross-origin.
+
+> If your own network cannot resolve the `trycloudflare.com` name, the script
+> says so explicitly and prints a `curl --resolve` command. Other devices are
+> unaffected — it is a local DNS problem, not a broken tunnel.
+
 ## Testing
 
 ```bash
-npm test              # 46 end-to-end tests against a real server (SQLite)
+npm test              # 50 end-to-end API tests against a real server (SQLite)
 npm run test:postgres # the same suite against a disposable Postgres container
+npm run ui-test -- --gate-password ... --admin-password ... --shots ./shots
 npm run smoke -- --base https://your-deployment --gate-password ... --admin-password ...
-npm run loadtest -- --devices 25 --seconds 20
+npm run loadtest -- --devices 25 --seconds 20 --gate-password ...
 ```
 
-The tests boot a genuine server on an ephemeral port and drive it over HTTP,
-because the defects worth catching — a session that does not stick, a CSRF
-check that never fires, a position handed out twice under load — only appear
-when the real middleware, the real cookie jar and the real database are all
-in play.
+The API tests boot a genuine server on an ephemeral port and drive it over
+HTTP, because the defects worth catching — a session that does not stick, a
+CSRF check that never fires, a position handed out twice under load — only
+appear when the real middleware, the real cookie jar and the real database
+are all in play.
+
+`ui-test` goes a layer further: it drives the actual pages in Chromium the way
+a person would — unlock the gate, sign up, open the admin panel, change a
+status, export a CSV, sign out — and can save screenshots. It asserts what an
+API test structurally cannot, namely that the pages are wired to the backend
+at all. It requires Playwright's browser, installed once with:
+
+```bash
+npx playwright install chromium
+```
+
+Both of the bugs found late in development were found this way: a counter
+animation that overwrote a new signup's position, and HSTS being withheld on
+a real HTTPS connection.
 
 `smoke.mjs` is safe against production: it creates one clearly-labelled entry
 and tells you how to remove it.
@@ -163,6 +200,10 @@ and signing up (server-side timings, from its own log):
 
 Zero errors, ~1,030 requests/second sustained. Comfortably more than the ten
 concurrent devices this needs to support.
+
+The browser suite has also been run end to end against a live public tunnel
+over real HTTPS, not only against localhost, so proxy headers, `Secure`
+cookies and HSTS are exercised on the path a real visitor takes.
 
 ---
 

@@ -268,3 +268,37 @@ describe('session hygiene', () => {
     }
   });
 });
+
+describe('transport security', () => {
+  test('HSTS is withheld over plain HTTP and sent over HTTPS', async () => {
+    // Over plain HTTP it must be absent. Sending it would make the browser
+    // remember the pin and render a local development server unreachable.
+    const plain = await server.client().get('/healthz');
+    assert.equal(plain.headers.get('strict-transport-security'), null);
+
+    // Behind a TLS-terminating proxy the connection genuinely is HTTPS, and
+    // the header must be sent even though NODE_ENV is not 'production'.
+    const proxied = await startTestServer({ TRUST_PROXY_HOPS: '1' });
+    try {
+      const response = await proxied.client().get('/healthz', {
+        headers: { 'X-Forwarded-Proto': 'https' },
+      });
+      assert.match(
+        response.headers.get('strict-transport-security') ?? '',
+        /max-age=\d+/,
+        'a forwarded HTTPS request should be pinned',
+      );
+    } finally {
+      await proxied.stop();
+    }
+  });
+
+  test('a forged X-Forwarded-Proto is ignored when no proxy is trusted', async () => {
+    // With TRUST_PROXY_HOPS=0 the header is attacker-controlled noise and
+    // must not be able to change how the response is built.
+    const response = await server.client().get('/healthz', {
+      headers: { 'X-Forwarded-Proto': 'https' },
+    });
+    assert.equal(response.headers.get('strict-transport-security'), null);
+  });
+});
