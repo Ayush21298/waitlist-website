@@ -1,1 +1,189 @@
-<!doctype html><title>gate placeholder</title>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R2P Openlab — 비공개 사이트</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="비공개 사이트입니다. 접속 비밀번호를 입력해주세요.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root{
+    --ink:#111827; --ink2:#1F2937;
+    --sub:#6B7280; --sub2:#9CA3AF;
+    --line:#E5E7EB; --line2:#D1D5DB;
+    --bg:#F9FAFB;
+    --danger:#B91C1C; --danger-bg:#FEF2F2;
+    --sans:"Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    letter-spacing:-.02em;-webkit-font-smoothing:antialiased;word-break:keep-all;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .card{
+    width:100%;max-width:400px;background:#fff;border-radius:16px;padding:38px 34px 30px;
+    box-shadow:0 1px 2px rgba(17,24,39,.04), 0 2px 6px rgba(17,24,39,.04), 0 18px 40px -16px rgba(17,24,39,.22);
+    animation:rise .5s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){ .card{animation:none} }
+
+  .brand{font-size:16px;font-weight:800;letter-spacing:-.05em}
+  .brand span{margin-left:8px;font-size:11.5px;font-weight:600;color:var(--sub2);letter-spacing:-.01em}
+  .lock{
+    width:38px;height:38px;border-radius:11px;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;margin-bottom:20px;
+  }
+  .lock svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  h1{margin-top:16px;font-size:22px;font-weight:800;letter-spacing:-.045em;line-height:1.35}
+  .lede{margin-top:10px;font-size:14px;font-weight:350;line-height:1.75;color:var(--sub)}
+
+  label{display:block;font-size:11.5px;font-weight:750;letter-spacing:.13em;color:var(--sub2);margin:26px 0 9px}
+  .row{position:relative;display:flex;align-items:center}
+  input{
+    width:100%;height:50px;padding:0 46px 0 16px;border:0;border-radius:10px;background:#fff;
+    box-shadow:inset 0 0 0 1px var(--line2), 0 1px 2px rgba(17,24,39,.03);
+    font-family:inherit;font-size:15px;font-weight:500;letter-spacing:-.02em;color:var(--ink);
+    transition:box-shadow .18s ease;
+  }
+  input::placeholder{color:var(--sub2);font-weight:400;letter-spacing:.1em}
+  input:focus{outline:0;box-shadow:inset 0 0 0 1.5px var(--ink), 0 0 0 4px #F3F4F6}
+  input[aria-invalid="true"]{box-shadow:inset 0 0 0 1.5px var(--danger)}
+  .peek{
+    position:absolute;right:6px;width:38px;height:38px;border:0;background:none;cursor:pointer;
+    color:var(--sub2);display:flex;align-items:center;justify-content:center;border-radius:8px;
+  }
+  .peek:hover{color:var(--ink)}
+  .peek svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .peek:focus-visible,button.submit:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  button.submit{
+    margin-top:22px;width:100%;height:52px;border:0;border-radius:10px;background:var(--ink);color:var(--bg);
+    font-family:inherit;font-size:15px;font-weight:800;letter-spacing:-.04em;cursor:pointer;
+    transition:background .18s ease;
+  }
+  button.submit:hover:not(:disabled){background:var(--ink2)}
+  button.submit:disabled{background:var(--line2);cursor:default}
+
+  .err{
+    display:none;margin-top:16px;padding:12px 14px;border-radius:8px;
+    background:var(--danger-bg);color:#991B1B;font-size:12.5px;font-weight:500;line-height:1.6;
+  }
+  .err.show{display:block}
+  .foot{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--sub2);line-height:1.7}
+</style>
+</head>
+<body>
+
+<main class="card">
+  <div class="lock" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+  </div>
+
+  <div class="brand">R2P Openlab<span>비공개</span></div>
+  <h1>접속 비밀번호가 필요합니다</h1>
+  <p class="lede">이 사이트는 초대된 분들만 이용할 수 있어요. 전달받은 비밀번호를 입력해주세요.</p>
+
+  <form id="gate" novalidate>
+    <label for="password">접속 비밀번호</label>
+    <div class="row">
+      <input id="password" name="password" type="password" autocomplete="current-password"
+             placeholder="••••••••" required autofocus>
+      <button type="button" class="peek" id="peek" aria-label="비밀번호 표시" aria-pressed="false">
+        <svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <button type="submit" class="submit" id="submit">들어가기</button>
+    <div class="err" id="error" role="alert"></div>
+  </form>
+
+  <p class="foot">비밀번호를 모르시나요? 담당자에게 문의해주세요.</p>
+</main>
+
+<script>
+(function(){
+  'use strict';
+
+  var form   = document.getElementById('gate');
+  var input  = document.getElementById('password');
+  var button = document.getElementById('submit');
+  var errBox = document.getElementById('error');
+  var peek   = document.getElementById('peek');
+
+  /* Where to go after unlocking. Read from our own URL, but never trusted:
+     the server re-validates it, and anything not a local path becomes '/'. */
+  function nextPath(){
+    try {
+      var raw = new URL(window.location.href).searchParams.get('next') || '/';
+      if (raw.charAt(0) !== '/' || raw.charAt(1) === '/') return '/';
+      return raw;
+    } catch (e) { return '/'; }
+  }
+
+  peek.addEventListener('click', function(){
+    var showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    peek.setAttribute('aria-pressed', String(!showing));
+    peek.setAttribute('aria-label', showing ? '비밀번호 표시' : '비밀번호 숨기기');
+    input.focus();
+  });
+
+  function fail(message){
+    errBox.textContent = message;
+    errBox.classList.add('show');
+    input.setAttribute('aria-invalid', 'true');
+    input.select();
+  }
+
+  input.addEventListener('input', function(){
+    errBox.classList.remove('show');
+    input.removeAttribute('aria-invalid');
+  });
+
+  form.addEventListener('submit', function(event){
+    event.preventDefault();
+    errBox.classList.remove('show');
+
+    var password = input.value;
+    if (!password){ fail('비밀번호를 입력해주세요.'); return; }
+
+    button.disabled = true;
+    button.textContent = '확인 중…';
+
+    fetch('/api/v1/gate/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password }),
+      credentials: 'same-origin'
+    })
+      .then(function(response){
+        return response.json().catch(function(){ return {}; }).then(function(data){
+          return { status: response.status, data: data };
+        });
+      })
+      .then(function(result){
+        if (result.status === 200 && result.data.ok){
+          window.location.replace(nextPath());
+          return;
+        }
+        if (result.status === 429){
+          fail(result.data.message || '시도가 너무 많습니다. 잠시 후 다시 시도해주세요.');
+        } else {
+          fail(result.data.message || '비밀번호가 올바르지 않습니다.');
+        }
+        button.disabled = false;
+        button.textContent = '들어가기';
+      })
+      .catch(function(){
+        fail('연결에 실패했어요. 네트워크를 확인하고 다시 시도해주세요.');
+        button.disabled = false;
+        button.textContent = '들어가기';
+      });
+  });
+})();
+</script>
+
+</body>
+</html>

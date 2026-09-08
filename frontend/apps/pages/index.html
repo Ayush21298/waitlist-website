@@ -92,6 +92,7 @@ section{padding:88px 0}
 .formcard .body{margin-top:8px;font-size:14.5px;line-height:1.7}
 .field{margin-top:22px}
 .field label{display:block;font-size:11.5px;font-weight:750;letter-spacing:.13em;color:var(--sub2);margin-bottom:9px}
+.field label em{font-style:normal;margin-left:6px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--line2)}
 .field input{width:100%;height:50px;padding:0 16px;border:0;border-radius:10px;background:#fff;
   box-shadow:inset 0 0 0 1px var(--line2), 0 1px 2px rgba(17,24,39,.03);font-family:inherit;font-size:15px;font-weight:500;letter-spacing:-.02em;color:var(--ink);
   transition:box-shadow .18s ease}
@@ -511,6 +512,11 @@ footer a{color:var(--sub);text-decoration:none}
           <input id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>
           <p class="err">이메일 형식을 확인해주세요.</p>
         </div>
+        <div class="field" id="f-phone">
+          <label for="phone">휴대폰 번호 <em>선택</em></label>
+          <input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="010-1234-5678" maxlength="32">
+          <p class="err">휴대폰 번호를 확인해주세요.</p>
+        </div>
         <div class="hp" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off"></div>
         <button class="submit" id="btn" type="submit">대기 리스트에 등록하기</button>
         <p class="consent"><span>등록하면 베타 초대와 출시 소식을 위해 이름·이메일을 보관하는 데 동의하는 것으로 봅니다.</span><span>그 외 용도로 쓰지 않으며, 언제든 회신으로 삭제를 요청할 수 있어요.</span></p>
@@ -526,6 +532,7 @@ footer a{color:var(--sub);text-decoration:none}
         <dl class="dn-info">
           <div><dt>이름</dt><dd id="done-name"></dd></div>
           <div><dt>이메일</dt><dd id="done-email"></dd></div>
+          <div id="done-phone-row" hidden><dt>휴대폰</dt><dd id="done-phone"></dd></div>
         </dl>
         <button type="button" class="dn-done" id="finish" disabled><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>등록 완료</button>
       </div>
@@ -762,11 +769,14 @@ footer a{color:var(--sub);text-decoration:none}
 <script>
 (function(){
   /* =========================================================
-     설정 — Apps Script 웹앱 배포 후 URL을 여기에 넣으세요.
-     비어 있으면 데모 모드로 동작합니다 (숫자는 DEMO_COUNT, 제출은 저장되지 않음).
+     백엔드 연결 설정.
+
+     이 페이지는 /a/pages/ 로 서비스되고, API 는 같은 출처(origin)에 있습니다.
+     따라서 절대 URL 이 필요 없고, 쿠키·CSRF 가 그대로 동작합니다.
+     다른 앱을 추가할 때는 APP_SLUG 만 바꾸면 됩니다.
      ========================================================= */
-  var ENDPOINT   = '';        // 예: 'https://script.google.com/macros/s/XXXX/exec'
-  var DEMO_COUNT = 128;
+  var APP_SLUG = 'pages';
+  var API = '/api/v1/apps/' + APP_SLUG;
 
   var $ = function(s){ return document.querySelector(s); };
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -784,24 +794,33 @@ footer a{color:var(--sub);text-decoration:none}
     requestAnimationFrame(tick);
   }
   function loadCount(){
-    if (!ENDPOINT){ showCount(DEMO_COUNT, true); return; }
-    fetch(ENDPOINT + '?action=count&_=' + Date.now(), {cache:'no-store'})
+    fetch(API + '/count', {cache:'no-store', credentials:'same-origin'})
       .then(function(r){ return r.json(); })
-      .then(function(d){ showCount(Number(d.count) || 0, true); })
+      .then(function(d){ if (!d.ok) throw new Error('count'); showCount(Number(d.count) || 0, true); })
       .catch(function(){ counterEl.classList.remove('loading'); countEl.textContent = '—'; });
   }
   loadCount();
 
   function validate(){
-    var name = $('#name'), email = $('#email'), fn = $('#f-name'), fe = $('#f-email');
+    var name = $('#name'), email = $('#email'), phone = $('#phone');
+    var fn = $('#f-name'), fe = $('#f-email'), fp = $('#f-phone');
     var nOk = name.value.trim().length > 0;
     var eOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim());
+    // 휴대폰은 선택 항목이므로, 비어 있으면 통과. 입력했다면 숫자 7~15자리.
+    var phoneRaw = phone.value.trim();
+    var digits = phoneRaw.replace(/\D/g, '');
+    var pOk = phoneRaw === '' || (/^[+()\-.\s\d]+$/.test(phoneRaw) && digits.length >= 7 && digits.length <= 15);
+
     fn.classList.toggle('bad', !nOk); name.setAttribute('aria-invalid', String(!nOk));
     fe.classList.toggle('bad', !eOk); email.setAttribute('aria-invalid', String(!eOk));
-    if (!nOk){ name.focus(); return false; } if (!eOk){ email.focus(); return false; }
+    fp.classList.toggle('bad', !pOk); phone.setAttribute('aria-invalid', String(!pOk));
+
+    if (!nOk){ name.focus(); return false; }
+    if (!eOk){ email.focus(); return false; }
+    if (!pOk){ phone.focus(); return false; }
     return true;
   }
-  ['#name','#email'].forEach(function(s){
+  ['#name','#email','#phone'].forEach(function(s){
     $(s).addEventListener('input', function(){ this.closest('.field').classList.remove('bad'); this.removeAttribute('aria-invalid'); });
   });
   var lastEmail = '', confettiTimer = null;
@@ -820,9 +839,10 @@ footer a{color:var(--sub);text-decoration:none}
       box.appendChild(el);
     }
   }
-  function done(position, email, name){
+  function done(position, email, name, phone){
     lastEmail = email;
     $('#done-email').textContent = email; $('#done-name').textContent = name;
+    if (phone){ $('#done-phone').textContent = phone; $('#done-phone-row').hidden = false; }
     var no = $('#myno'); no.textContent = fmt(position);
     no.style.animation = 'none'; void no.offsetWidth; no.style.animation = '';
     confetti(); clearInterval(confettiTimer); confettiTimer = setInterval(confetti, 2600);
@@ -834,20 +854,52 @@ footer a{color:var(--sub);text-decoration:none}
   form.addEventListener('submit', function(e){
     e.preventDefault(); ferr.classList.remove('show');
     if (!validate()) return;
-    if (form.website.value) return;
-    var payload = { name: $('#name').value.trim(), email: $('#email').value.trim().toLowerCase(),
-                    source: location.search.replace(/^\?/, ''), ua: navigator.userAgent };
+
+    var payload = {
+      name:   $('#name').value.trim(),
+      email:  $('#email').value.trim(),
+      phone:  $('#phone').value.trim(),
+      source: location.search.replace(/^\?/, ''),
+      locale: navigator.language || '',
+      // 허니팟. 사람에게는 보이지 않는 칸이므로 값이 있으면 봇입니다.
+      website: form.website.value
+    };
+
     btn.disabled = true; btn.textContent = '등록 중…';
     var reset = function(){ btn.disabled = false; btn.textContent = '대기 리스트에 등록하기'; };
-    if (!ENDPOINT){ setTimeout(function(){ done(lastEmail ? +$('#myno').textContent.replace(/,/g,'') : DEMO_COUNT + 1, payload.email, payload.name); reset(); }, 700); return; }
-    fetch(ENDPOINT, { method:'POST', body: JSON.stringify(payload), headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow' })
-      .then(function(r){ return r.json(); })
-      .then(function(d){ if (!d.ok) throw new Error(d.error || 'fail'); done(Number(d.position), payload.email, payload.name); })
+
+    fetch(API + '/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){ return { status: r.status, data: d }; });
+      })
+      .then(function(res){
+        var d = res.data;
+        if (d.ok){
+          done(Number(d.position), payload.email, payload.name, payload.phone);
+          // 이미 등록된 이메일이면 원래 순번을 그대로 보여줍니다.
+          if (d.duplicate) $('.dn-hero p').textContent = '이미 등록되어 있어요. 순서대로 초대장을 보내드릴게요.';
+          reset();
+          return;
+        }
+        // 서버가 이유를 알려준 경우에는 그대로 보여주는 편이 친절합니다.
+        ferr.textContent = d.message ||
+          '등록에 실패했어요. 네트워크를 확인하고 다시 시도해주세요. 계속 안 되면 하단 문의 메일로 이름과 이메일을 보내주세요.';
+        ferr.classList.add('show');
+        if (d.field === 'email'){ $('#f-email').classList.add('bad'); $('#email').focus(); }
+        else if (d.field === 'phone'){ $('#f-phone').classList.add('bad'); $('#phone').focus(); }
+        else if (d.field === 'name'){ $('#f-name').classList.add('bad'); $('#name').focus(); }
+        reset();
+      })
       .catch(function(){
         ferr.textContent = '등록에 실패했어요. 네트워크를 확인하고 다시 시도해주세요. 계속 안 되면 하단 문의 메일로 이름과 이메일을 보내주세요.';
         ferr.classList.add('show');
-      })
-      .finally(reset);
+        reset();
+      });
   });
 
   /* ---------- 카드 마퀴 (끊김 없는 루프용 복제) ---------- */
