@@ -204,17 +204,32 @@ async function resolvePublicly(hostname) {
 async function waitForPublicUrl(url) {
   const hostname = new URL(url).hostname;
 
-  // Give the name a little time to appear; a fresh tunnel is not instant.
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  // A freshly-created quick tunnel is not immediately in DNS -- cloudflared
+  // says so itself ("it may take some time to be reachable"). Measured here,
+  // registration and propagation took well over a minute, so a short wait
+  // reports a perfectly good tunnel as a failed one.
+  //
+  // Both resolvers are polled together, because they answer different
+  // questions: the public one says whether the tunnel registered at all, the
+  // system one says whether this machine is allowed to see it.
+  const DNS_TIMEOUT_MS = 150_000;
+  const deadline = Date.now() + DNS_TIMEOUT_MS;
+  let registeredPublicly = false;
+
+  for (;;) {
     try {
       await dns.lookup(hostname);
-      break;
+      break; // This machine can resolve it; go on to check it serves.
     } catch {
-      if (attempt === 19) {
-        // This machine cannot resolve it. Can anyone?
-        return (await resolvePublicly(hostname)) ? 'local-dns' : 'no-dns';
+      if (!registeredPublicly && (await resolvePublicly(hostname))) {
+        registeredPublicly = true;
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (Date.now() >= deadline) {
+        // Registered for the rest of the world but not visible here means the
+        // local resolver is filtering it, which is a different problem.
+        return registeredPublicly ? 'local-dns' : 'no-dns';
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
   }
 
@@ -261,7 +276,8 @@ try {
     'command. Press Ctrl-C to stop.',
   ]);
 
-  console.log('\nChecking the URL is reachable from the internet...');
+  console.log('\nWaiting for Cloudflare to publish the name in DNS (this can take a');
+  console.log('minute or two on a new tunnel), then checking it serves...');
   const status = await waitForPublicUrl(publicUrl);
   if (status === 'reachable') {
     console.log('Reachable. Open the link above on any device.\n');
