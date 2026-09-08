@@ -1,0 +1,23 @@
+# Secrets must never enter the build context.
+.env
+.env.*
+!.env.example
+
+node_modules/
+**/node_modules/
+
+# Runtime state belongs in the volume, not the image.
+data/
+logs/
+*.sqlite
+*.sqlite-*
+
+.git/
+.github/
+.vscode/
+.idea/
+coverage/
+tmp/
+*.log
+*.md
+!README.md

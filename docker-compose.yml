@@ -1,0 +1,62 @@
+# Local, production-shaped run of the whole thing.
+#
+#   cp .env.example .env   (fill in the passwords and secrets)
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# Uses SQLite on a named volume by default. To rehearse the managed-Postgres
+# deployment instead, start the optional profile and point DATABASE_URL at it:
+#
+#   docker compose --profile postgres up --build
+
+services:
+  waitlist:
+    build: .
+    image: r2p/waitlist:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      NODE_ENV: production
+      SITE_GATE_PASSWORD: ${SITE_GATE_PASSWORD:?set SITE_GATE_PASSWORD in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env}
+      DATABASE_URL: ${DATABASE_URL:-}
+      # One proxy hop is the common PaaS shape; 0 when hit directly.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - waitlist-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    # A waitlist should not be able to exhaust the host.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waitlist}
+      POSTGRES_DB: waitlist
+    ports:
+      - "5432:5432"
+    volumes:
+      - waitlist-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  waitlist-data:
+  waitlist-pg:
