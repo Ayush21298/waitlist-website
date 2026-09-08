@@ -7,6 +7,7 @@
  * assigned twice under load -- only show up when the real middleware stack,
  * the real cookie jar and the real database are all in play.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,9 +22,33 @@ import { SEED_APPS } from '../src/seed.js';
 export const GATE_PASSWORD = 'test-gate-password';
 export const ADMIN_PASSWORD = 'test-admin-password';
 
-/** Boots an isolated server. Call `stop()` when finished. */
+/**
+ * Boots an isolated server. Call `stop()` when finished.
+ *
+ * Runs on SQLite by default. Set TEST_DATABASE_URL to exercise the Postgres
+ * adapter instead: each server then gets its own schema, so the suites stay
+ * isolated from one another inside a single database. Both adapters must pass
+ * the same tests, which is the only way to trust that a deployment moving
+ * from a local file to managed Postgres behaves identically.
+ */
 export async function startTestServer(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waitlist-test-'));
+
+  let schema = null;
+  let databaseUrl = '';
+  const postgresUrl = process.env.TEST_DATABASE_URL;
+  if (postgresUrl) {
+    schema = `t_${crypto.randomBytes(6).toString('hex')}`;
+    const { default: pg } = await import('pg');
+    const client = new pg.Client({ connectionString: postgresUrl });
+    await client.connect();
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.end();
+
+    const url = new URL(postgresUrl);
+    url.searchParams.set('options', `-c search_path=${schema}`);
+    databaseUrl = url.toString();
+  }
 
   const env = {
     NODE_ENV: 'test',
@@ -38,6 +63,7 @@ export async function startTestServer(overrides = {}) {
     // scrypt is intentionally slow in production; a test suite that pays that
     // cost on every login stops being run.
     SCRYPT_N: '1024',
+    DATABASE_URL: databaseUrl,
     ...overrides,
   };
 
@@ -63,6 +89,13 @@ export async function startTestServer(overrides = {}) {
       app.stopBackgroundWork?.();
       await new Promise((resolve) => server.close(resolve));
       await adapter.close();
+      if (schema) {
+        const { default: pg } = await import('pg');
+        const client = new pg.Client({ connectionString: postgresUrl });
+        await client.connect();
+        await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+        await client.end();
+      }
       fs.rmSync(dir, { recursive: true, force: true });
     },
   };
