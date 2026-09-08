@@ -1,0 +1,56 @@
+# Render blueprint — the fastest genuinely-free deployment.
+#
+#   1. Push this repository to GitHub.
+#   2. Render dashboard → New → Blueprint → pick the repo.
+#   3. Render prompts for the three values marked `sync: false` below.
+#   4. Create a free Postgres database at neon.com and paste its connection
+#      string in as DATABASE_URL.
+#
+# Why an external database: Render's free tier has no persistent disk, so a
+# SQLite file is lost on every restart and redeploy, and Render's own free
+# Postgres expires 30 days after it is created. Neon's free plan is permanent
+# and needs no card. See DEPLOYMENT.md.
+
+services:
+  - type: web
+    name: r2p-waitlist
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /readyz
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render terminates TLS at one load balancer in front of the container.
+      # This must match reality: too high and a client can forge
+      # X-Forwarded-For, which is the identity rate limiting is keyed on.
+      - key: TRUST_PROXY_HOPS
+        value: 1
+
+      # Render captures stdout, and the free filesystem is wiped on every
+      # restart, so writing a log file as well would only waste I/O.
+      - key: LOG_TO_FILE
+        value: false
+      - key: LOG_TO_CONSOLE
+        value: true
+
+      # Generated once by Render and then held stable, which is what keeps
+      # sessions alive across deploys. Never printed in the dashboard.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: IP_HASH_SECRET
+        generateValue: true
+
+      # Prompted for on first deploy; Render stores them as secrets.
+      - key: SITE_GATE_PASSWORD
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Your Neon (or other managed Postgres) connection string, e.g.
+      #   postgres://user:pass@ep-xxx.region.aws.neon.tech/db?sslmode=require
+      - key: DATABASE_URL
+        sync: false
