@@ -136,6 +136,22 @@ starts the server configured correctly for being behind a proxy. It is a
 demo tool, not a hosting option: the URL dies with the command, and the
 tunnel is infrastructure you do not control.
 
+### Getting a shorter, stable URL
+
+Quick-tunnel names are random four-word strings and cannot be chosen — that
+is the trade for needing no account. If you want something short and
+memorable, you need a URL that is yours rather than Cloudflare's:
+
+| Option | URL you get | Cost | Notes |
+|---|---|---|---|
+| **Deploy to Render** | `pages-beta.onrender.com` | free | You choose the subdomain. Permanent, and `onrender.com` is not on the blocklists that catch `trycloudflare.com`. |
+| **Named Cloudflare tunnel** | `waitlist.yourdomain.com` | a domain, ~$10/yr | Shortest and fully yours. Free Cloudflare account, then `cloudflared tunnel login`, `cloudflared tunnel create waitlist`, `cloudflared tunnel route dns waitlist waitlist.yourdomain.com`. Stable across restarts. |
+| **Quick tunnel** | `four-random-words.trycloudflare.com` | free | What `npm run share` uses. Fine for a demo, new name every run. |
+
+For this project the first is almost certainly what you want: it is free, the
+name is stable, and it sidesteps the DNS filtering described below entirely,
+because the block is specific to `trycloudflare.com`.
+
 ### If the tunnel URL does not open
 
 Almost always this is DNS filtering on your own network, not a broken tunnel.
