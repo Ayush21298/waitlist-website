@@ -6,6 +6,8 @@
  * it sweeps its own tables on a schedule, and it drains in-flight requests
  * before exiting so a redeploy never cuts a signup in half.
  */
+import os from 'node:os';
+
 import { createApp } from './app.js';
 import { createLogger } from './logger.js';
 import { createStore } from './db/index.js';
@@ -39,10 +41,24 @@ async function main() {
   const app = createApp({ config, store, auth, logger, startedAt });
 
   const server = app.listen(config.server.port, config.server.host, () => {
+    const addresses = listenAddresses(config.server.host, config.server.port);
     logger.info('listening', {
-      url: `http://${config.server.host}:${config.server.port}`,
+      host: config.server.host,
+      port: config.server.port,
+      urls: addresses,
       dialect: store.dialect,
     });
+
+    // Printed plainly as well as logged. The single most common question is
+    // "what address do I open on my phone", and making someone grep their own
+    // interface list to answer it is a poor use of their time.
+    if (config.logging.toConsole) {
+      process.stdout.write(`\n  Waitlist is running.\n`);
+      for (const { label, url } of addresses) {
+        process.stdout.write(`    ${label.padEnd(16)} ${url}\n`);
+      }
+      process.stdout.write(`    admin panel      ${addresses[0].url}/admin\n\n`);
+    }
   });
 
   // Node's defaults are shorter than a typical load balancer's idle timeout,
@@ -65,6 +81,32 @@ async function main() {
   runMaintenance(store, logger).catch((err) => logger.error('initial maintenance failed', { err }));
 
   installShutdownHandlers({ server, adapter, app, logger });
+}
+
+/**
+ * Every address this server can actually be reached on.
+ *
+ * Binding to 0.0.0.0 means other devices on the network can reach it, but
+ * nothing tells you which address to give them. Virtual interfaces are left
+ * out: a docker bridge address is never the one you want to type into a phone.
+ */
+function listenAddresses(host, port) {
+  const addresses = [{ label: 'on this machine', url: `http://localhost:${port}` }];
+
+  // A specific bind address is the only one that will answer.
+  if (host !== '0.0.0.0' && host !== '::') {
+    return [{ label: 'on this machine', url: `http://${host}:${port}` }];
+  }
+
+  const skip = /^(docker|br-|veth|virbr|lo|tun|tap|zt)/;
+  for (const [name, entries] of Object.entries(os.networkInterfaces())) {
+    if (skip.test(name)) continue;
+    for (const entry of entries ?? []) {
+      if (entry.family !== 'IPv4' || entry.internal) continue;
+      addresses.push({ label: 'on your network', url: `http://${entry.address}:${port}` });
+    }
+  }
+  return addresses;
 }
 
 async function runMaintenance(store, logger) {

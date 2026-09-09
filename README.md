@@ -63,6 +63,35 @@ Then open <http://localhost:8080>. You are asked for the site password first;
 the landing page is behind it. The admin panel is at **`/admin`** and asks for
 the second password.
 
+### Reaching it from other devices on your network
+
+Nothing extra to run — the server already binds `0.0.0.0`, so it is reachable
+from any device on the same Wi-Fi or LAN. On startup it prints the addresses:
+
+```
+  Waitlist is running.
+    on this machine  http://localhost:8080
+    on your network  http://10.12.211.201:8080
+    admin panel      http://localhost:8080/admin
+```
+
+Open the `on your network` address on a phone or another computer. Everything
+works over plain HTTP on a LAN: the session cookie omits `Secure` when the
+connection is not HTTPS (a `Secure` cookie would be dropped by the browser and
+you would never get past the gate), and the same-origin check compares against
+whatever address you used, so no configuration is needed.
+
+To bind one interface only, set `HOST`:
+
+```bash
+HOST=127.0.0.1 npm start     # this machine only, not reachable from the LAN
+PORT=8090 npm start          # a different port
+```
+
+Use a tunnel (`npm run share`) only when you need the site reachable from
+*outside* your network. For a phone on the same Wi-Fi, the LAN address is
+simpler, faster and involves no third party.
+
 If you would rather not install anything at all:
 
 ```bash
