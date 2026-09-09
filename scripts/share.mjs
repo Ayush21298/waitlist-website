@@ -258,6 +258,17 @@ function box(lines) {
 }
 
 try {
+  // Said before anything happens, because this command reaches out to a third
+  // party and that should never be a surprise.
+  console.log(
+    'This publishes your local server on the public internet through a\n' +
+      'Cloudflare quick tunnel. It contacts Cloudflare; nothing else does.\n' +
+      '\n' +
+      'If you only need other devices on your own network -- a phone on the\n' +
+      'same Wi-Fi -- stop and use "npm run lan" instead. No tunnel, no third\n' +
+      'party, and it prints the address to open.\n',
+  );
+
   await ensureCloudflared();
 
   console.log('Opening a Cloudflare quick tunnel...');

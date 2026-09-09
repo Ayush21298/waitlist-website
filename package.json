@@ -12,6 +12,7 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "start": "node backend/src/server.js",
+    "lan": "node backend/src/server.js",
     "dev": "node --watch backend/src/server.js",
     "test": "npm --prefix backend test",
     "test:postgres": "node scripts/test-postgres.mjs",

@@ -63,6 +63,18 @@ Then open <http://localhost:8080>. You are asked for the site password first;
 the landing page is behind it. The admin panel is at **`/admin`** and asks for
 the second password.
 
+### Which command does what
+
+| Command | Reachable from | Contacts anything external? |
+|---|---|---|
+| `npm start` / `npm run lan` | this machine **and your whole network** | **No.** Nothing outside your machine. |
+| `npm run share` | the public internet | Yes — opens a Cloudflare tunnel. |
+
+`lan` and `start` are the same command; `lan` exists so the name answers the
+question by itself. Use `share` **only** when you need the site reachable from
+outside your network. Verified: `npm start` spawns no tunnel client and holds
+no outbound connections at all.
+
 ### Reaching it from other devices on your network
 
 Nothing extra to run — the server already binds `0.0.0.0`, so it is reachable
