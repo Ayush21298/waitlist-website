@@ -10,7 +10,7 @@
     "node": ">=20.11.0"
   },
   "scripts": {
-    "setup": "npm --prefix backend ci",
+    "setup": "node scripts/setup.mjs",
     "start": "node backend/src/server.js",
     "dev": "node --watch backend/src/server.js",
     "test": "npm --prefix backend test",

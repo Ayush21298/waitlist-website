@@ -81,6 +81,9 @@ async function ensureCloudflared() {
 
 const TUNNEL_LOG = path.join(os.tmpdir(), 'waitlist-cloudflared.log');
 
+/** Public address of the tunnel hostname, once known. */
+let publicAddress = null;
+
 /** Starts the tunnel and resolves once Cloudflare hands back a public URL. */
 function startTunnel() {
   // cloudflared's own output is kept on disk. Without it, a tunnel that
@@ -214,20 +217,20 @@ async function waitForPublicUrl(url) {
   // system one says whether this machine is allowed to see it.
   const DNS_TIMEOUT_MS = 150_000;
   const deadline = Date.now() + DNS_TIMEOUT_MS;
-  let registeredPublicly = false;
 
   for (;;) {
     try {
       await dns.lookup(hostname);
       break; // This machine can resolve it; go on to check it serves.
     } catch {
-      if (!registeredPublicly && (await resolvePublicly(hostname))) {
-        registeredPublicly = true;
-      }
+      // Held from the first successful public lookup rather than resolved
+      // again when the message is printed: that second lookup can fail
+      // transiently, and reporting a null address makes the advice useless.
+      if (!publicAddress) publicAddress = await resolvePublicly(hostname);
       if (Date.now() >= deadline) {
         // Registered for the rest of the world but not visible here means the
         // local resolver is filtering it, which is a different problem.
-        return registeredPublicly ? 'local-dns' : 'no-dns';
+        return publicAddress ? 'local-dns' : 'no-dns';
       }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
@@ -283,7 +286,7 @@ try {
     console.log('Reachable. Open the link above on any device.\n');
   } else if (status === 'local-dns') {
     const hostname = new URL(publicUrl).hostname;
-    const address = await resolvePublicly(hostname);
+    const address = publicAddress ?? (await resolvePublicly(hostname)) ?? '<address>';
     const resolver = await currentResolver();
 
     console.log(

@@ -29,26 +29,58 @@ password on top of that.
 
 ---
 
-## Quick start
+## Running it on any machine
+
+Two commands, from nothing:
 
 ```bash
-npm run setup                 # installs backend dependencies
-cp .env.example .env
-npm run generate-secrets      # paste the two secrets into .env
-#                             # then set SITE_GATE_PASSWORD and ADMIN_PASSWORD
+./scripts/bootstrap.sh        # installs Node, npm, git, curl, build tools if missing
 npm start
 ```
 
-Then open <http://localhost:8080>. You will be asked for the site password
-first; the landing page is behind it.
+`bootstrap.sh` is shell rather than Node on purpose — it has to be able to
+install Node itself. It detects your OS and package manager (apt, dnf, yum,
+pacman, zypper, apk, Homebrew), works out exactly what is missing, **shows you
+the plan and asks before touching anything**, then installs it and hands off to
+`npm run setup`. If it cannot use a package manager it falls back to `nvm`,
+which needs no root at all.
 
-The admin panel is at **`/admin`**.
+```bash
+./scripts/bootstrap.sh --dry-run       # show the plan, change nothing
+./scripts/bootstrap.sh --yes           # no prompts, for scripted installs
+./scripts/bootstrap.sh --with-browser  # also install Chromium for the UI tests
+```
 
-With Docker instead:
+`npm run setup` handles the project itself: installs dependencies, writes a
+`.env` with **freshly generated secrets**, asks for your two passwords, and
+then proves the server actually boots before telling you it worked. It never
+overwrites an existing `.env`, so it is safe to re-run.
+
+> Verified from scratch in a bare Debian container with no Node, npm, git,
+> curl, compiler or Python: both commands, then a passing 27-check smoke test.
+
+Then open <http://localhost:8080>. You are asked for the site password first;
+the landing page is behind it. The admin panel is at **`/admin`** and asks for
+the second password.
+
+If you would rather not install anything at all:
 
 ```bash
 docker compose up --build
 ```
+
+### Moving it to another machine
+
+Copy or clone the project, then run the same two commands there.
+
+`.env` is deliberately **not** copied — it is gitignored, and it holds this
+machine's secrets. `npm run setup` generates new ones on the new machine.
+Give it the same two passwords if you want both machines to behave
+identically; the signing secrets are meant to differ per machine, and the
+waitlist data lives in `data/` (or in Postgres), not in `.env`.
+
+To move the data as well, copy `data/waitlist.sqlite`, or export it from the
+admin panel and keep the file.
 
 ---
 
