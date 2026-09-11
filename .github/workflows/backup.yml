@@ -1,0 +1,87 @@
+# Nightly off-site backup of the waitlist.
+#
+# Why this exists even though the database is managed: free Postgres plans
+# give you a very short recovery window and no scheduled backups. Neon's free
+# plan offers six hours of instant restore; Supabase's free plan offers none.
+# Six hours does not survive a bad migration noticed on Monday morning, and
+# the likeliest cause of data loss is our own mistake, which a managed service
+# will replicate faithfully.
+#
+# Setup (once):
+#   1. Repository → Settings → Secrets and variables → Actions → New secret
+#      Name:  DATABASE_URL
+#      Value: your Neon connection string, using the UNPOOLED host
+#             (no "-pooler" in it — pg_dump cannot use a pooled connection)
+#   2. That is all. It runs nightly and on demand.
+#
+# The dump is uploaded as a workflow artifact. For a few hundred signups it is
+# a few kilobytes. Keep this repository private: the dump contains names and
+# email addresses.
+
+name: Backup waitlist
+
+on:
+  schedule:
+    # 03:17 UTC. Deliberately not on the hour: GitHub delays scheduled jobs
+    # under load and drops some entirely, and the top of the hour is busiest.
+    - cron: '17 3 * * *'
+  workflow_dispatch: # so a backup can be taken by hand before a risky change
+
+# Read-only on the repository; the database credential comes from a secret.
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # A backup that hangs should fail loudly rather than burn the monthly
+    # Actions allowance.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        run: npm --prefix backend ci --omit=dev
+
+      - name: Take the backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # The backup script only reads the database, but config.js refuses
+          # to start without these. They are never used here.
+          SITE_GATE_PASSWORD: backup-run-placeholder
+          ADMIN_PASSWORD: backup-run-placeholder-2
+          SESSION_SECRET: ${{ github.run_id }}00000000000000000000000000000000
+          IP_HASH_SECRET: ${{ github.run_id }}11111111111111111111111111111111
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret is not set. See the comments at the top of this file."
+            exit 1
+          fi
+          node scripts/backup.mjs --out ./backups --keep 0
+
+      - name: Check the backup is not empty
+        run: |
+          # A zero-signup backup is far more likely to mean "pointed at the
+          # wrong database" than "nobody has signed up", and silently
+          # archiving it would hide the real loss.
+          file=$(ls -t ./backups/*.json | head -1)
+          entries=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$file','utf8')).counts.entries)")
+          echo "Backed up $entries signup(s) from $(basename "$file")"
+          if [ "$entries" = "0" ]; then
+            echo "::warning::The backup contains no signups. Check DATABASE_URL points at the right database."
+          fi
+
+      - name: Upload it
+        uses: actions/upload-artifact@v4
+        with:
+          name: waitlist-backup-${{ github.run_id }}
+          path: backups/
+          # Long enough to notice a problem and go back a few weeks, short
+          # enough that personal data is not kept indefinitely.
+          retention-days: 90
+          if-no-files-found: error

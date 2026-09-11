@@ -46,8 +46,21 @@ it is not zero. Free Render services also share a 750 instance-hours-per-month
 grant, and a 31-day month is 744 hours, so one continuously-pinged service
 fits, but only just, and it uses the whole quota.
 
-**Do not** use Render's own free Postgres: it expires 30 days after creation.
-**Do not** use SQLite on Render: there is no free persistent disk.
+**Two traps, both confirmed in Render's own documentation.**
+
+*Do not use Render's free Postgres.* It is a 30-day trial, not a tier:
+"Free Render Postgres databases expire 30 days after creation", followed by a
+14-day grace period before deletion. It also has no recovery at all —
+"Render does not create logical backups for databases on the Free compute
+plan" and "Render does not provide recovery capabilities for databases on the
+Free compute plan". Your waitlist would disappear six weeks in.
+
+*Do not use SQLite on Render.* "Free web services have no persistent disk
+option"; disks require a paid instance. The file is wiped on every redeploy.
+
+Both are avoided by putting the data in Neon, which is also what makes the
+free tier's spin-downs and recycling harmless: the compute can be restarted
+at will because the data is not on it.
 
 To avoid the cold start, point a free uptime monitor at `/healthz` every 14
 minutes. That endpoint is deliberately outside the site gate and does no
@@ -116,9 +129,34 @@ used for production applications".
 | **Glitch, Deta** | Both shut down (July 2025 and October 2024). |
 
 Supabase is a workable alternative to Neon if you want its extra tooling —
-500 MB, permanent — but a free project **pauses after one week of inactivity**
-and must be resumed by hand. For a low-traffic waitlist that is a worse
-failure mode than Neon's automatic scale-to-zero.
+500 MB, permanent, no card — and your data does survive a pause, with a
+one-year window to resume. But a free project **pauses after about a week of
+inactivity** and must be resumed by hand, which for a quiet waitlist means the
+site is down until somebody notices. Supabase's free plan also has **no
+backups at all**; their own documentation tells free users to "regularly
+export their data... and maintain off-site backups". Neon's automatic
+scale-to-zero is the better failure mode.
+
+### Firebase: not a fit for this app
+
+Worth stating plainly, because it is the obvious thing to reach for:
+
+- **Cloud Functions require the paid Blaze plan.** Firebase's deploy
+  documentation is explicit — "to deploy functions, your project must be on
+  the Blaze pricing plan" — which means a credit card. The pricing page still
+  lists Function quotas under the free Spark plan, which reads as though it
+  works there; it does not.
+- **It would mean rewriting the data layer.** Firestore is a document store,
+  not Postgres. The queries, the migrations, the transaction that assigns a
+  waitlist position under a lock — all of it would be redone. Firebase's own
+  Postgres offering (SQL Connect) is a 90-day trial on Spark, and Cloud SQL
+  proper has no free tier.
+- **Spend cannot be capped on the products you would use.** Budget alerts
+  "do not pause services", and Firebase's spend caps cover only some services
+  — Firestore and Cloud Storage are not among them.
+
+That is a rewrite, a credit card, and uncapped billing exposure, to solve a
+problem this app does not have.
 
 ---
 
@@ -238,6 +276,30 @@ too low.
 ## Backups
 
 The waitlist is the asset. Everything else in this repository can be rebuilt.
+
+**Take your own backups even on managed Postgres.** Not because the provider
+is unreliable with the primary copy — Neon's storage is replicated and it
+states plainly that none of its free limits delete your data — but because
+*recovery* on free plans is thin or absent: Neon gives a six-hour restore
+window, Supabase and Render's free database give none. Six hours does not
+survive a bad migration noticed on Monday morning, and the likeliest cause of
+loss is our own mistake, which a managed service replicates faithfully.
+
+```bash
+npm run backup                    # JSON (restorable) + CSV (readable anywhere)
+npm run restore -- --file backups/waitlist-....json
+```
+
+`.github/workflows/backup.yml` runs that nightly and keeps the result as a
+workflow artifact for 90 days. Set one repository secret, `DATABASE_URL`,
+using the **unpooled** Neon host — `pg_dump`-style full reads cannot use a
+pooled connection. Keep the repository **private**: the dump contains names
+and email addresses, and scheduled workflows on public repositories are also
+disabled automatically after 60 days without activity.
+
+**Test a restore once.** An untested backup is a guess. `restore.mjs` refuses
+to overwrite a database that already holds signups unless given `--force`, so
+trying it against an empty local database is safe.
 
 **Postgres.** Neon and Supabase both keep point-in-time history on their free
 plans, but do not rely on that alone:
