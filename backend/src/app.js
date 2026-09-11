@@ -118,9 +118,11 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
     }),
   );
 
-  // The root redirects to the default app so the deployment has a front door.
-  app.get('/', (req, res) => {
-    res.redirect(302, `/a/${config.apps.defaultSlug}/`);
+  // The front door: an index of every app on this deployment. It used to
+  // redirect straight to one app, which made the other ones unreachable
+  // unless you already knew their URL.
+  app.get('/', (req, res, next) => {
+    sendPage(req, res, next, 'home', 'index.html');
   });
 
   app.use(notFound());

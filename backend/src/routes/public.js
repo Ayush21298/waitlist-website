@@ -67,6 +67,25 @@ export function publicRoutes({ config, store, logger }) {
     };
   }
 
+  /**
+   * Every app on this deployment, for the front door.
+   *
+   * Driven from the database rather than a list in the page, so adding an app
+   * makes it appear on the index with no edit anywhere. Inactive apps are
+   * left out: deactivating one should take it off the front door.
+   */
+  router.get('/apps', rateLimit({ limiter: readLimiter, name: 'api-read' }), async (req, res, next) => {
+    try {
+      const apps = await store.listApps({ includeInactive: false });
+      const views = await Promise.all(
+        apps.map(async (app) => publicAppView(app, await store.countEntries(app.id))),
+      );
+      res.json({ ok: true, apps: views });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get('/apps/:slug', rateLimit({ limiter: readLimiter, name: 'api-read' }), loadApp, async (req, res, next) => {
     try {
       const count = await store.countEntries(req.app_.id);

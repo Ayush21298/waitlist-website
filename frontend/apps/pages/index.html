@@ -495,8 +495,8 @@ footer a{color:var(--sub);text-decoration:none}
         <span>하루 동안 쌓인 데이터를 읽고, 다양한 포맷으로 오늘을 써드려요.</span>
       </p>
       <div class="counter loading" id="counter" aria-live="polite">
-        <div class="big"><span class="sp s1"></span><span class="sp s2"></span><span class="sp s3"></span><span class="sp s4"></span><span id="count">—</span><small>/ 50</small></div>
-        <p><b>최대 50명 모집중</b><br>등록 순서대로 베타 초대장이 발송됩니다.</p>
+        <div class="big"><span class="sp s1"></span><span class="sp s2"></span><span class="sp s3"></span><span class="sp s4"></span><span id="count">—</span><small>/ 100</small></div>
+        <p><b>최대 <span id="cap-copy">100</span>명 모집중</b><br>등록 순서대로 베타 초대장이 발송됩니다.</p>
       </div>
     </div>
 
@@ -772,7 +772,7 @@ footer a{color:var(--sub);text-decoration:none}
      ========================================================= */
   var APP_SLUG = 'pages';
   var API = '/api/v1/apps/' + APP_SLUG;
-  var MAX = 50;              // 서버가 정원을 알려주기 전까지 쓰는 값
+  var MAX = 100;             // 서버가 정원을 알려주기 전까지 쓰는 값
 
   var $ = function(s){ return document.querySelector(s); };
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -805,11 +805,16 @@ footer a{color:var(--sub);text-decoration:none}
   var capEl = document.querySelector('.counter .big small');
 
   /* 정원은 서버가 알려줍니다. 관리자 페이지에서 50을 바꾸면
-     "/ 50" 표시와 마감 판정이 함께 따라갑니다. */
+     "/ 100" 표시와 본문 문구, 마감 판정이 모두 함께 따라갑니다. */
+  var capCopyEl = document.getElementById('cap-copy');
+
   function applyCapacity(capacity){
     if (!capacity) return;
     MAX = capacity;
     if (capEl) capEl.textContent = '/ ' + capacity;
+    // 본문 문구도 같이 바꿉니다. 숫자가 두 군데에서 어긋나면
+    // 관리자 페이지에서 정원을 바꿨을 때 한쪽만 옛날 값이 남습니다.
+    if (capCopyEl) capCopyEl.textContent = capacity;
   }
 
   function loadCount(){

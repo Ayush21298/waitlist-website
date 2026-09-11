@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R2P Openlab — 베타 테스터 모집</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="R2P Openlab 에서 준비 중인 앱들의 베타 테스터를 모집합니다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root{
+    --ink:#111827; --ink2:#1F2937;
+    --sub:#6B7280; --sub2:#9CA3AF;
+    --line:#E5E7EB; --line2:#D1D5DB;
+    --bg:#F9FAFB; --card:#FFFFFF; --wash:#F3F4F6;
+    --ok:#046C04; --ok-bg:#ECFDF3;
+    --shut:#6B7280; --shut-bg:#F3F4F6;
+    --hl:rgba(172,100,255,.34);
+    --sans:"Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+    --shadow:0 1px 2px rgba(17,24,39,.04), 0 2px 6px rgba(17,24,39,.04), 0 18px 40px -18px rgba(17,24,39,.22);
+    --shadow-lift:0 2px 4px rgba(17,24,39,.05), 0 8px 16px rgba(17,24,39,.06), 0 30px 60px -22px rgba(17,24,39,.3);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--ink);font-family:var(--sans);
+    letter-spacing:-.02em;word-break:keep-all;-webkit-font-smoothing:antialiased;
+    min-height:100vh;display:flex;flex-direction:column;
+  }
+  a{color:inherit;text-decoration:none}
+
+  .wrap{width:1000px;max-width:calc(100% - 48px);margin:0 auto}
+
+  /* ---------- top bar ---------- */
+  .topbar{border-bottom:1px solid var(--line);background:rgba(249,250,251,.86);
+          backdrop-filter:blur(14px);position:sticky;top:0;z-index:10}
+  .topbar .wrap{height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .brand{font-size:15.5px;font-weight:800;letter-spacing:-.05em;white-space:nowrap}
+  .brand span{margin-left:9px;font-size:11.5px;font-weight:600;color:var(--sub2);letter-spacing:-.01em}
+  .leave{font-size:12.5px;font-weight:600;color:var(--sub2);background:none;border:0;cursor:pointer;font-family:inherit}
+  .leave:hover{color:var(--ink)}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:72px 0 44px}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.18em;color:var(--sub2)}
+  h1{margin-top:20px;font-size:42px;font-weight:800;letter-spacing:-.055em;line-height:1.22}
+  /* <mark> carries a yellow background by default; without clearing it the
+     highlight behind the text never shows through. */
+  .hl{position:relative;z-index:0;background:none;color:inherit}
+  .hl::before{content:"";position:absolute;left:-.08em;right:-.08em;top:.46em;bottom:.05em;z-index:-1;
+    background:var(--hl);border-radius:.18em .1em .2em .14em;transform:rotate(-1.2deg);
+    clip-path:polygon(0 14%,100% 0,99% 100%,1% 90%)}
+  header.hero p{margin-top:18px;font-size:16px;font-weight:350;line-height:1.8;color:var(--sub);max-width:46ch}
+
+  /* ---------- app grid ---------- */
+  main{flex:1;padding-bottom:80px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+
+  .app{
+    position:relative;display:flex;flex-direction:column;
+    background:var(--card);border-radius:18px;padding:30px 30px 26px;
+    box-shadow:var(--shadow);
+    transition:transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease;
+    min-height:236px;
+  }
+  .app:hover{transform:translateY(-3px);box-shadow:var(--shadow-lift)}
+  .app:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .app:active{transform:translateY(-1px)}
+
+  .app .head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+  .app h2{font-size:25px;font-weight:800;letter-spacing:-.05em;line-height:1.25}
+  .app .desc{margin-top:11px;font-size:14.5px;font-weight:350;line-height:1.75;color:var(--sub)}
+
+  .pill{
+    flex:none;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;
+    border-radius:100px;font-size:11.5px;font-weight:750;white-space:nowrap;
+  }
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill.open{background:var(--ok-bg);color:var(--ok)}
+  .pill.shut{background:var(--shut-bg);color:var(--shut)}
+
+  .app .foot{margin-top:auto;padding-top:22px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+
+  .stat .n{font-size:31px;font-weight:800;letter-spacing:-.055em;line-height:1;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:15px;font-weight:800;color:var(--sub2);margin-left:3px;letter-spacing:-.04em}
+  .stat .k{margin-top:7px;font-size:12.5px;color:var(--sub)}
+  .stat.loading .n{color:var(--line2)}
+
+  .go{
+    flex:none;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;
+    border-radius:100px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:750;
+    letter-spacing:-.03em;transition:background .18s ease;
+  }
+  .app:hover .go{background:var(--ink2)}
+  .go svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* Progress rail: how full the beta is, when it has a limit at all. */
+  .rail{margin-top:18px;height:5px;border-radius:100px;background:var(--wash);overflow:hidden}
+  .rail i{display:block;height:100%;border-radius:100px;background:var(--ink);
+          width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+
+  .state-empty,.state-error{
+    grid-column:1/-1;padding:56px 24px;text-align:center;color:var(--sub2);font-size:14px;
+    background:var(--card);border-radius:18px;box-shadow:var(--shadow);
+  }
+
+  /* Skeletons while the list loads, so the page does not jump. */
+  .skeleton{pointer-events:none}
+  .skeleton h2,.skeleton .desc,.skeleton .stat{color:transparent}
+  .skeleton h2{background:var(--wash);border-radius:7px;width:45%;height:26px}
+  .skeleton .desc{background:var(--wash);border-radius:6px;width:80%;height:15px;margin-top:14px}
+  .skeleton .go{background:var(--wash)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .skeleton{animation:pulse 1.4s ease-in-out infinite}
+
+  footer{border-top:1px solid var(--line);padding:26px 0}
+  footer .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  footer span{font-size:12px;color:var(--sub2)}
+
+  @media (max-width:640px){
+    header.hero{padding:48px 0 32px}
+    h1{font-size:32px}
+    .app{padding:26px 24px 22px;min-height:0}
+    .app h2{font-size:22px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">R2P Openlab<span>베타 테스터 모집</span></div>
+    <button class="leave" id="leave" type="button">나가기</button>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">OPEN BETA</div>
+    <h1>먼저 써보고<br><mark class="hl">함께 만들어요</mark></h1>
+    <p>R2P Openlab 에서 준비 중인 앱들입니다. 관심 있는 앱을 골라 대기 리스트에 이름을 올려주세요.</p>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="grid" id="grid" aria-live="polite" aria-busy="true"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>R2P Openlab</span>
+    <span id="summary"></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+
+  var grid = document.getElementById('grid');
+  var summary = document.getElementById('summary');
+
+  /* 앱 카드는 createElement 로만 만듭니다. 앱 이름과 설명은 관리자 페이지에서
+     입력되는 값이라, 문자열을 이어붙여 HTML 을 만들면 그대로 실행될 수 있습니다. */
+  function el(tag, attrs, children){
+    var node = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function(k){
+      if (k === 'class') node.className = attrs[k];
+      else if (k === 'text') node.textContent = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function(c){
+      if (c === null || c === undefined) return;
+      node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return node;
+  }
+
+  function clear(n){ while (n.firstChild) n.removeChild(n.firstChild); }
+  function fmt(n){ return Number(n || 0).toLocaleString('ko-KR'); }
+
+  function arrow(){
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M5 12h13M12 6l6 6-6 6');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  /* 로딩 중에도 자리를 잡아두어 목록이 도착할 때 화면이 튀지 않게 합니다. */
+  function skeletons(count){
+    clear(grid);
+    for (var i = 0; i < count; i++){
+      grid.appendChild(el('div', { class: 'app skeleton' }, [
+        el('div', { class: 'head' }, [el('h2', { text: ' ' })]),
+        el('p', { class: 'desc', text: ' ' }),
+        el('div', { class: 'foot' }, [
+          el('div', { class: 'stat' }, [el('div', { class: 'n', text: ' ' })]),
+          el('span', { class: 'go' }, [' '])
+        ])
+      ]));
+    }
+  }
+
+  function card(app){
+    var limited = app.capacity > 0;
+    var remaining = limited ? app.remaining : null;
+    var full = limited && remaining === 0;
+
+    var node = el('a', {
+      class: 'app',
+      href: '/a/' + app.slug + '/',
+      'aria-label': app.name + (full ? ' — 모집 마감' : ' — 대기 리스트 등록')
+    });
+
+    node.appendChild(el('div', { class: 'head' }, [
+      el('h2', { text: app.name }),
+      el('span', { class: 'pill ' + (full ? 'shut' : 'open') }, [
+        el('span', { class: 'dot', 'aria-hidden': 'true' }),
+        full ? '모집 마감' : '모집중'
+      ])
+    ]));
+
+    if (app.description) node.appendChild(el('p', { class: 'desc', text: app.description }));
+
+    /* 정원이 있는 앱은 남은 자리를, 없는 앱은 모인 인원을 보여줍니다. */
+    var stat;
+    if (limited){
+      stat = el('div', { class: 'stat' }, [
+        el('div', { class: 'n' }, [fmt(remaining), el('small', { text: '/ ' + fmt(app.capacity) })]),
+        el('div', { class: 'k', text: full ? '자리가 모두 찼어요' : '자리 남음' })
+      ]);
+    } else {
+      stat = el('div', { class: 'stat' }, [
+        el('div', { class: 'n' }, [fmt(app.count), el('small', { text: '명' })]),
+        el('div', { class: 'k', text: '지금까지 함께 기다리는 분들' })
+      ]);
+    }
+
+    node.appendChild(el('div', { class: 'foot' }, [
+      stat,
+      el('span', { class: 'go' }, [full ? '살펴보기' : '등록하기', arrow()])
+    ]));
+
+    if (limited){
+      var fill = el('i');
+      var rail = el('div', { class: 'rail' }, [fill]);
+      node.appendChild(rail);
+      // 다음 프레임에 폭을 주어야 전환 애니메이션이 실제로 재생됩니다.
+      requestAnimationFrame(function(){
+        var pct = Math.max(0, Math.min(100, (app.count / app.capacity) * 100));
+        fill.style.width = pct + '%';
+      });
+    }
+
+    return node;
+  }
+
+  function render(apps){
+    clear(grid);
+    grid.setAttribute('aria-busy', 'false');
+
+    if (!apps.length){
+      grid.appendChild(el('div', { class: 'state-empty', text: '아직 공개된 앱이 없어요.' }));
+      summary.textContent = '';
+      return;
+    }
+
+    apps.forEach(function(app){ grid.appendChild(card(app)); });
+
+    var total = apps.reduce(function(sum, a){ return sum + (a.count || 0); }, 0);
+    summary.textContent = apps.length + '개 앱 · 지금까지 ' + fmt(total) + '명 등록';
+  }
+
+  skeletons(2);
+
+  fetch('/api/v1/apps', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) throw new Error('list');
+      render(d.apps || []);
+    })
+    .catch(function(){
+      clear(grid);
+      grid.setAttribute('aria-busy', 'false');
+      grid.appendChild(el('div', { class: 'state-error', text: '앱 목록을 불러오지 못했어요. 새로고침해 주세요.' }));
+    });
+
+  document.getElementById('leave').addEventListener('click', function(){
+    fetch('/api/v1/gate/logout', { method: 'POST', credentials: 'same-origin' })
+      .catch(function(){})
+      .then(function(){ window.location.href = '/gate'; });
+  });
+})();
+</script>
+
+</body>
+</html>

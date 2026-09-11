@@ -157,7 +157,10 @@ export function resolveWithin(root, urlPath, { index = null } = {}) {
     try {
       const indexStat = fs.statSync(indexPath);
       if (!indexStat.isFile()) return null;
-      return { file: indexPath, stat: indexStat };
+      // Reported so the caller can redirect to the trailing-slash form. A
+      // page served at /a/cdots resolves its relative assets against /a/,
+      // so every font, image and stylesheet 404s and the design collapses.
+      return { file: indexPath, stat: indexStat, isDirectoryIndex: true };
     } catch {
       return null;
     }
@@ -239,6 +242,17 @@ export function compressedStatic({ root, index = null, maxAgeSeconds = 0, cache,
     // Dotfiles are never web content, and serving one is usually a mistake
     // that leaks configuration.
     if (path.basename(target.file).startsWith('.')) return next();
+
+    // A directory reached without a trailing slash must redirect to one.
+    // Without this the page loads but its relative assets resolve one level
+    // too high: /a/cdots/assets/logo.svg is requested as /a/assets/logo.svg.
+    // The page then renders with no fonts, no logo and no background, which
+    // looks like a broken design rather than a broken URL.
+    if (target.isDirectoryIndex && !req.path.endsWith('/')) {
+      const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+      res.redirect(301, `${req.baseUrl}${req.path}/${query}`);
+      return;
+    }
 
     sendAsset(req, res, target.file, target.stat, { cache: assets, maxAgeSeconds, logger }).catch(next);
   };

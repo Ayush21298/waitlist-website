@@ -173,6 +173,40 @@ export function buildMigrations(dialect) {
         // in exports.
       ],
     },
+
+    {
+      version: 4,
+      name: 'pages_capacity_100',
+      statements: [
+        // The Pages beta grew from fifty places to a hundred.
+        //
+        // Migration 3 is left exactly as it was rather than edited: it has
+        // already run on live databases, and changing an applied migration
+        // means two installations claiming the same version number while
+        // holding different schemas.
+        //
+        // Conditioned on the previous value, so an operator who has since
+        // chosen their own capacity keeps it.
+        `UPDATE apps SET capacity = 100 WHERE slug = 'pages' AND capacity = 50`,
+      ],
+    },
+
+    {
+      version: 5,
+      name: 'korean_app_descriptions',
+      statements: [
+        // Descriptions used to be internal notes. They are now shown to
+        // visitors on the index page, so they need to be in the same language
+        // as the landing pages.
+        //
+        // Conditioned on the exact previous text, so a description already
+        // rewritten by an operator is left alone.
+        `UPDATE apps SET description = '매일 저녁, 하루가 한 페이지의 이야기로 도착해요.'
+           WHERE slug = 'pages' AND description = 'Your day, delivered as a single page each evening.'`,
+        `UPDATE apps SET description = '신뢰하는 사람들에게 물어보세요.'
+           WHERE slug = 'cdots' AND description = 'Ask the people you trust.'`,
+      ],
+    },
   ];
 }
 

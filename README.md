@@ -12,11 +12,16 @@ password on top of that.
                         ┌─────────────────────────────────┐
    visitor ────────────▶│  site gate   (password #1)      │
                         └───────────────┬─────────────────┘
+                                        ▼
+                        ┌─────────────────────────────────┐
+                        │  /   app index                  │
+                        │      every app, live figures    │
+                        └───────────────┬─────────────────┘
                                         │
               ┌─────────────────────────┼──────────────────────────┐
               ▼                         ▼                          ▼
-      /a/pages/            /a/<other-app>/              /admin  (password #2)
-      landing page          landing page                admin panel
+      /a/pages/                  /a/cdots/                /admin  (password #2)
+      landing page               landing page             admin panel
               │                         │                          │
               └─────────────┬───────────┘                          │
                             ▼                                      ▼
@@ -132,6 +137,7 @@ admin panel and keep the file.
 | `backend/src/` | The API server. Nothing here is app-specific. |
 | `backend/test/` | End-to-end tests, run against a real server. |
 | `frontend/gate/` | The site password page — the only unauthenticated screen. |
+| `frontend/home/` | The app index, served at `/`. |
 | `frontend/admin/` | The admin panel (statistics, list, activity log, exports). |
 | `frontend/apps/<slug>/` | One landing page per app, served at `/a/<slug>/`. |
 | `misc/` | Where design uploads land before import. Gitignored. |
@@ -144,8 +150,12 @@ admin panel and keep the file.
 
 | App | Page | Collects | Limit |
 |---|---|---|---|
-| **Pages** | `/a/pages/` | name, email | 50 places; the form closes when full |
+| **Pages** | `/a/pages/` | name, email | 100 places; the form closes when full |
 | **C·Dots** | `/a/cdots/` | email only | 100 places; the page counts down |
+
+`/` is the front door: an index of every active app with its live figures,
+built from the database, so adding an app puts it on the index with no edit
+anywhere. Deactivating one takes it off.
 
 They share one backend, one database and one admin panel, but nothing else:
 different designs, different fields, and one counts up to its limit while the

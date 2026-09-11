@@ -676,3 +676,62 @@ describe('capacity enforcement', () => {
     }
   });
 });
+
+describe('app index', () => {
+  test('the root serves the index rather than redirecting to one app', async () => {
+    const client = await visitor();
+    const response = await client.get('/', { headers: { Accept: 'text/html' } });
+    assert.equal(response.status, 200, 'the front door should be a page, not a redirect');
+    assert.match(String(response.body), /R2P Openlab/);
+  });
+
+  test('the public app list carries what the index needs', async () => {
+    const client = await visitor();
+    const response = await client.get('/api/v1/apps');
+    assert.equal(response.status, 200);
+
+    const slugs = response.body.apps.map((a) => a.slug).sort();
+    assert.deepEqual(slugs, ['cdots', 'pages']);
+
+    for (const app of response.body.apps) {
+      assert.ok(app.name, 'a name to show');
+      assert.ok(app.description, 'a description to show');
+      assert.equal(typeof app.count, 'number');
+      assert.equal(typeof app.capacity, 'number');
+    }
+  });
+
+  test('a deactivated app disappears from the front door', async () => {
+    const isolated = await startTestServer();
+    try {
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const apps = await adminClient.get('/api/v1/admin/apps');
+      const cdots = apps.body.apps.find((a) => a.slug === 'cdots');
+      await adminClient.patch(`/api/v1/admin/apps/${cdots.id}`, { isActive: false });
+
+      const client = isolated.client();
+      await client.unlockGate();
+      const listed = await client.get('/api/v1/apps');
+      assert.deepEqual(listed.body.apps.map((a) => a.slug), ['pages']);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('the index is behind the site gate like everything else', async () => {
+    const client = server.client();
+    const response = await client.get('/', { headers: { Accept: 'text/html' } });
+    assert.equal(response.status, 302);
+    assert.match(response.location, /^\/gate/);
+  });
+
+  test('both betas are hundred-place by default', async () => {
+    const client = await visitor();
+    const response = await client.get('/api/v1/apps');
+    for (const app of response.body.apps) {
+      assert.equal(app.capacity, 100, `${app.slug} should offer 100 places`);
+    }
+  });
+});

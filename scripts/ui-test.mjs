@@ -119,6 +119,43 @@ try {
   await page.waitForURL(`**/a/${APP}/**`, { timeout: 15000 });
   check('the correct password returns you to where you were going', page.url().includes(`/a/${APP}/`));
 
+  // A deep link is honoured above; arriving at the root lands on the index.
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  check('the root is reachable once unlocked', new URL(page.url()).pathname === '/');
+
+  /* ---------------- the front door ---------------- */
+  console.log('\nApp index');
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.app:not(.skeleton)').length > 0,
+    null,
+    { timeout: 15000 },
+  );
+
+  const indexCards = await page.locator('.app').count();
+  check('the root lists the apps rather than jumping into one', indexCards >= 2, `${indexCards} cards`);
+  check('each card links to its own app',
+    (await page.locator('.app[href="/a/pages/"]').count()) === 1
+    && (await page.locator('.app[href="/a/cdots/"]').count()) === 1);
+  check('a card shows a live figure, not a placeholder',
+    /\d/.test(await page.locator('.app .stat .n').first().innerText()));
+  await shot(page, '00-home');
+
+  // Both cards must actually go somewhere.
+  await page.click('.app[href="/a/cdots/"]');
+  await page.waitForURL('**/a/cdots/**', { timeout: 15000 });
+  check('clicking the C-Dots card opens C-Dots', page.url().includes('/a/cdots/'));
+
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.app:not(.skeleton)').length > 0,
+    null,
+    { timeout: 15000 },
+  );
+  await page.click('.app[href="/a/pages/"]');
+  await page.waitForURL('**/a/pages/**', { timeout: 15000 });
+  check('clicking the Pages card opens Pages', page.url().includes('/a/pages/'));
+
   /* ---------------- the landing page ---------------- */
   console.log('\nLanding page');
   await page.waitForLoadState('networkidle');
@@ -396,6 +433,18 @@ try {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   check('the admin login does not scroll sideways on a phone', adminOverflow <= 1, `${adminOverflow}px of overflow`);
+  await mobilePage.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await mobilePage.waitForFunction(
+    () => document.querySelectorAll('.app:not(.skeleton)').length > 0,
+    null,
+    { timeout: 15000 },
+  ).catch(() => {});
+  const indexOverflow = await mobilePage.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  check('the app index does not scroll sideways on a phone', indexOverflow <= 1, `${indexOverflow}px`);
+  if (SHOTS) await mobilePage.screenshot({ path: path.join(SHOTS, '22-home-mobile.png'), fullPage: true });
+
   await mobile.close();
 
   /* ---------------- the closed state ---------------- */

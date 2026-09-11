@@ -145,3 +145,39 @@ describe('path traversal', () => {
     assert.notEqual(response.status, 200);
   });
 });
+
+describe('directory index', () => {
+  test('a directory without a trailing slash redirects to one', async () => {
+    // Without this the page loads but its relative assets resolve one level
+    // too high -- /a/cdots/assets/x is requested as /a/assets/x -- so the
+    // fonts, logo and background all 404 and the design collapses.
+    const response = await raw('/a/cdots');
+    assert.equal(response.status, 301, 'must redirect, not serve in place');
+    assert.equal(response.headers.location, '/a/cdots/');
+  });
+
+  test('the redirect keeps the query string', async () => {
+    const response = await raw('/a/cdots?utm_source=poster');
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.location, '/a/cdots/?utm_source=poster');
+  });
+
+  test('assets resolve correctly once the slash is there', async () => {
+    const logo = await raw('/a/cdots/assets/logo.svg');
+    assert.equal(logo.status, 200);
+    assert.match(logo.headers['content-type'], /image\/svg/);
+
+    // The path the browser would have asked for without the redirect.
+    const wrong = await raw('/a/assets/logo.svg');
+    assert.equal(wrong.status, 404, 'confirms the redirect is what makes assets work');
+  });
+
+  test('a font is served compressed, with the right type', async () => {
+    const font = await raw('/a/cdots/assets/font/OneUISansGUI-400Regular.ttf', { 'Accept-Encoding': 'br' });
+    assert.equal(font.status, 200);
+    assert.equal(font.headers['content-type'], 'font/ttf');
+    assert.equal(font.headers['content-encoding'], 'br');
+    // 2.6 MB raw; anything close to that means fonts are not being compressed.
+    assert.ok(font.body.length < 1_000_000, `font should compress well, got ${font.body.length} bytes`);
+  });
+});
