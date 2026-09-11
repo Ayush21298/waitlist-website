@@ -836,6 +836,13 @@
       .catch(fail);
   }
 
+  // Apps differ in what they ask for: C-Dots wants an email address and
+  // nothing else, Pages wants a name too.
+  function describeField(collect, require){
+    if (!collect) return 'Not collected';
+    return require ? 'Required' : 'Optional';
+  }
+
   function statusBadge(status){
     return el('span', { class: 'badge ' + status }, [
       el('span', { class: 'dot', 'aria-hidden': 'true' }),
@@ -910,7 +917,8 @@
       return el('tr', null, [
         el('td', { class: 'num strong', text: '#' + entry.position }),
         el('td', { class: 'nowrap', text: entry.appName }),
-        el('td', { class: 'strong' }, [el('span', { class: 'trunc', text: entry.name })]),
+        el('td', entry.name ? { class: 'strong' } : { class: 'nowrap', style: 'color:var(--sub2)' },
+          [el('span', { class: 'trunc', text: entry.name || '\u2014' })]),
         el('td', null, [el('a', { class: 'trunc', href: 'mailto:' + encodeURIComponent(entry.email), text: entry.email })]),
         el('td', { class: 'nowrap mono', text: entry.phone || '—' }),
         el('td', null, [select]),
@@ -1082,14 +1090,17 @@
           el('span', { class: 'dot', 'aria-hidden': 'true' }),
           app.isActive ? 'Active' : 'Inactive'
         ])]),
-        el('td', { text: app.collectPhone ? (app.requirePhone ? 'Required' : 'Optional') : 'Not collected' }),
+        el('td', { text: describeField(app.collectName, app.requireName) }),
+        el('td', { text: describeField(app.collectPhone, app.requirePhone) }),
+        el('td', { class: 'num', text: app.capacity ? num(app.capacity) : '\u2014' }),
         el('td', null, [toggle])
       ]);
     });
     buildTable($('apps-table'), [
       { label: 'Name' }, { label: 'Identifier' }, { label: 'Landing page' },
-      { label: 'State' }, { label: 'Phone' }, { label: '' }
-    ], rows.length ? rows : [el('tr', null, [el('td', { colspan: '6', class: 'empty', text: 'No apps yet.' })])]);
+      { label: 'State' }, { label: 'Asks name' }, { label: 'Asks phone' },
+      { label: 'Capacity', num: true }, { label: '' }
+    ], rows.length ? rows : [el('tr', null, [el('td', { colspan: '8', class: 'empty', text: 'No apps yet.' })])]);
   }
 
   $('app-form').addEventListener('submit', function(event){

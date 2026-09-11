@@ -292,6 +292,77 @@ try {
   await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
   check('the panel stays closed after signing out', await page.locator('#view-login').isVisible());
 
+  /* ---------------- the second app ---------------- */
+  // C-Dots is the proof that the platform is genuinely multi-tenant: a
+  // completely different design, an email-only form, and a counter that
+  // counts places down rather than signups up -- all on the same backend.
+  console.log('\nSecond app (C-Dots)');
+  await page.goto(`${BASE}/a/cdots/`, { waitUntil: 'networkidle' });
+
+  const inputCount = await page.locator('input').count();
+  check('the form asks for an email address and nothing else', inputCount === 1, `${inputCount} inputs`);
+  check('no name field was added', (await page.locator('#name').count()) === 0);
+  check('no phone field was added', (await page.locator('#phone').count()) === 0);
+
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('#remaining');
+      return el && /^\d+$/.test(el.textContent.trim());
+    },
+    null,
+    { timeout: 15000 },
+  );
+  const remainingBefore = Number((await page.locator('#remaining').innerText()).trim());
+  const capacityLabel = (await page.locator('.counter .total').innerText()).trim();
+  check('the counter loaded places remaining from the backend', remainingBefore > 0, String(remainingBefore));
+  check('the capacity comes from the backend too', capacityLabel === '/100', capacityLabel);
+
+  // An invalid address must shake rather than submit.
+  await page.fill('#email', 'not-an-email');
+  await page.click('#go');
+  await page.waitForTimeout(250);
+  check('an invalid address is refused in the browser', (await page.locator('#wl.error').count()) > 0);
+
+  const cdotsEmail = `cdots-ui-${stamp}@example.com`;
+  await page.fill('#email', cdotsEmail);
+  await page.click('#go');
+
+  await page.waitForSelector('#wl.done', { timeout: 15000 });
+  check('a valid address is accepted', true);
+
+  await page.waitForFunction(
+    (before) => Number(document.querySelector('#remaining').textContent.trim()) === before - 1,
+    remainingBefore,
+    { timeout: 15000 },
+  ).catch(() => {});
+  const remainingAfter = Number((await page.locator('#remaining').innerText()).trim());
+  check('one signup consumes one place', remainingAfter === remainingBefore - 1,
+    `${remainingBefore} -> ${remainingAfter}`);
+
+  await page.waitForTimeout(1200);
+  await shot(page, '11-cdots-success');
+
+  // The page resets itself, and the signup must be in the shared admin panel.
+  const cdotsAdmin = await context.newPage();
+  await cdotsAdmin.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
+  await cdotsAdmin.fill('#admin-password', ADMIN_PASSWORD);
+  await cdotsAdmin.click('#login-btn');
+  await cdotsAdmin.waitForSelector('#view-app:not([hidden])', { timeout: 15000 });
+  await cdotsAdmin.click('.tab[data-tab="entries"]');
+  await cdotsAdmin.fill('#entry-search', cdotsEmail);
+  await cdotsAdmin.waitForFunction(
+    () => document.querySelectorAll('#entries-table tbody tr').length === 1,
+    null,
+    { timeout: 15000 },
+  );
+  const cdotsRow = await cdotsAdmin.locator('#entries-table tbody tr').first().innerText();
+  check('the C-Dots signup reaches the shared admin panel', cdotsRow.includes(cdotsEmail));
+  check('it is attributed to the right app', cdotsRow.includes('Dots'), cdotsRow.replace(/\s+/g, ' ').slice(0, 90));
+  await shot(cdotsAdmin, '12-admin-two-apps');
+  await cdotsAdmin.close();
+
+  await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
+
   /* ---------------- page hygiene ---------------- */
   console.log('\nPage hygiene');
   check('no uncaught JavaScript exceptions', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));

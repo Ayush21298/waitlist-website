@@ -39,15 +39,28 @@ const CONTENT_TYPES = new Map(
     '.woff': 'font/woff',
     '.woff2': 'font/woff2',
     '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
     '.map': 'application/json; charset=utf-8',
   }),
 );
 
-/** Already-compressed formats gain nothing and cost CPU. */
-const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.mjs', '.json', '.svg', '.txt', '.xml', '.webmanifest', '.map']);
+/**
+ * Formats worth compressing. Anything already compressed internally -- PNG,
+ * JPEG, WebP, woff2 -- is left alone, because re-compressing it costs CPU and
+ * saves nothing.
+ *
+ * TTF and OTF are the ones easy to overlook: unlike woff2 they carry no
+ * internal compression, and a CJK face is enormous. The C-Dots page ships
+ * 10.6 MB of TTF, which brotli takes to 2.3 MB -- the single largest saving
+ * available anywhere in this project.
+ */
+const COMPRESSIBLE = new Set([
+  '.html', '.css', '.js', '.mjs', '.json', '.svg', '.txt', '.xml', '.webmanifest', '.map',
+  '.ttf', '.otf',
+]);
 
 const MIN_COMPRESS_BYTES = 1024;
-const DEFAULT_CACHE_BUDGET = 96 * 1024 * 1024;
+const DEFAULT_CACHE_BUDGET = 192 * 1024 * 1024;
 
 export class AssetCache {
   #entries = new Map();
