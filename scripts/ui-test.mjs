@@ -133,7 +133,9 @@ try {
   check('the counter is no longer in its loading state',
     !(await page.locator('#counter').getAttribute('class') ?? '').includes('loading'));
 
-  check('the phone field is present', await page.locator('#phone').isVisible());
+  check('the form asks for a name and an email only', (await page.locator('#phone').count()) === 0);
+  const capacityLabel = (await page.locator('.counter .big small').innerText()).trim();
+  check('the capacity comes from the backend', /^\/\s*\d+$/.test(capacityLabel), capacityLabel);
   check('the format gallery rendered', (await page.locator('.slot').count()) > 0,
     `${await page.locator('.slot').count()} cards`);
   await shot(page, '03-landing');
@@ -144,16 +146,12 @@ try {
   await page.click('#btn');
   check('an invalid email is caught in the browser', await page.locator('#f-email.bad').count() > 0);
 
-  await page.fill('#email', testEmail);
-  await page.fill('#phone', '123');
-  await page.click('#btn');
-  check('an invalid phone is caught in the browser', await page.locator('#f-phone.bad').count() > 0);
+
 
   /* ---------------- signup ---------------- */
   console.log('\nSignup through the form');
   await page.fill('#name', testName);
   await page.fill('#email', testEmail);
-  await page.fill('#phone', '010-4321-8765');
   await page.click('#btn');
 
   await page.waitForSelector('#join[data-state="done"]', { timeout: 15000 });
@@ -163,8 +161,7 @@ try {
   check('a waitlist position is shown', /^[\d,]+$/.test(position), `showed "${position}"`);
   check('the confirmation echoes the name', (await page.locator('#done-name').innerText()).includes(String(stamp)));
   check('the confirmation echoes the email', (await page.locator('#done-email').innerText()) === testEmail);
-  check('the phone row is revealed when a phone was given',
-    await page.locator('#done-phone-row').isVisible());
+
   // The confirmation fades in over 500ms; capturing mid-animation makes the
   // screenshot look washed out and misrepresents the design.
   await page.waitForTimeout(800);
@@ -233,7 +230,8 @@ try {
   const rowText = await row.innerText();
   check('search finds the signup made through the form', rowText.includes(testEmail));
   check('the name typed in the browser is stored and shown', rowText.includes(String(stamp)));
-  check('the phone number reached the admin list', rowText.includes('010-4321-8765'), rowText.replace(/\s+/g, ' ').slice(0, 120));
+  check('an app that collects no phone shows a placeholder, not a blank cell',
+    rowText.includes('\u2014'), rowText.replace(/\s+/g, ' ').slice(0, 120));
   await shot(page, '07-admin-entries');
 
   // Change the status through the UI and confirm it sticks across a reload.
@@ -313,9 +311,9 @@ try {
     { timeout: 15000 },
   );
   const remainingBefore = Number((await page.locator('#remaining').innerText()).trim());
-  const capacityLabel = (await page.locator('.counter .total').innerText()).trim();
+  const cdotsCapacityLabel = (await page.locator('.counter .total').innerText()).trim();
   check('the counter loaded places remaining from the backend', remainingBefore > 0, String(remainingBefore));
-  check('the capacity comes from the backend too', capacityLabel === '/100', capacityLabel);
+  check('the capacity comes from the backend too', cdotsCapacityLabel === '/100', cdotsCapacityLabel);
 
   // An invalid address must shake rather than submit.
   await page.fill('#email', 'not-an-email');
@@ -399,6 +397,93 @@ try {
   );
   check('the admin login does not scroll sideways on a phone', adminOverflow <= 1, `${adminOverflow}px of overflow`);
   await mobile.close();
+
+  /* ---------------- the closed state ---------------- */
+  // Left until last, because it lowers a capacity and nothing after it should
+  // depend on the app still accepting signups.
+  console.log('\nRecruitment closed (Pages at capacity)');
+  const closer = await context.newPage();
+  await closer.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
+  // The admin session may already be live from an earlier section; the panel
+  // decides which of its two views to show, so sign in only when asked to.
+  if (await closer.locator('#view-login:not([hidden])').count()) {
+    await closer.fill('#admin-password', ADMIN_PASSWORD);
+    await closer.click('#login-btn');
+  }
+  await closer.waitForSelector('#view-app:not([hidden])', { timeout: 15000 });
+
+  // Driven through the real control rather than the API, because the point of
+  // the feature is that an administrator can do this without a terminal.
+  await closer.click('.tab[data-tab="apps"]');
+  await closer.waitForFunction(
+    () => document.querySelectorAll('#apps-table tbody tr').length > 0,
+    null,
+    { timeout: 15000 },
+  );
+
+  const taken = await closer.evaluate(async () => {
+    const r = await fetch('/api/v1/apps/pages/count', { credentials: 'same-origin' });
+    return (await r.json()).count;
+  });
+
+  const pagesRow = closer.locator('#apps-table tbody tr').filter({ hasText: 'pages' });
+  const capacityInput = pagesRow.locator('input[type=number]');
+  check('capacity is editable from the Apps tab', (await capacityInput.count()) === 1);
+
+  await capacityInput.fill(String(Math.max(1, taken)));
+  await capacityInput.press('Enter');
+  await closer.waitForSelector('.toast', { timeout: 10000 });
+  check('changing it is confirmed', (await closer.locator('.toast').count()) > 0);
+  await closer.close();
+
+  await page.goto(`${BASE}/a/pages/`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#count');
+    return el && el.textContent.trim() !== '' && el.textContent.trim() !== '\u2014';
+  }, { timeout: 15000 });
+  await page.waitForTimeout(1100); // the count-up animation has to settle first
+
+  check('the submit button is disabled once the beta is full',
+    await page.locator('#btn').isDisabled());
+  check('the button says so in Korean',
+    (await page.locator('#btn').innerText()).includes('\uB9C8\uAC10'),
+    await page.locator('#btn').innerText());
+  check('the fields are locked too', (await page.locator('#name').isDisabled())
+    && (await page.locator('#email').isDisabled()));
+  await shot(page, '13-pages-full');
+
+  // Raising the limit must reopen it, and the page must show the new figure
+  // on its next load without any code change.
+  const reopener = await context.newPage();
+  await reopener.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
+  if (await reopener.locator('#view-login:not([hidden])').count()) {
+    await reopener.fill('#admin-password', ADMIN_PASSWORD);
+    await reopener.click('#login-btn');
+  }
+  await reopener.waitForSelector('#view-app:not([hidden])', { timeout: 15000 });
+  await reopener.click('.tab[data-tab="apps"]');
+  await reopener.waitForFunction(
+    () => document.querySelectorAll('#apps-table tbody tr').length > 0,
+    null,
+    { timeout: 15000 },
+  );
+  const reopenInput = reopener.locator('#apps-table tbody tr').filter({ hasText: 'pages' })
+    .locator('input[type=number]');
+  await reopenInput.fill('250');
+  await reopenInput.press('Enter');
+  await reopener.waitForSelector('.toast', { timeout: 10000 });
+  await reopener.close();
+
+  await page.goto(`${BASE}/a/pages/`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () => /\/\s*250/.test(document.querySelector('.counter .big small')?.textContent ?? ''),
+    null,
+    { timeout: 15000 },
+  ).catch(() => {});
+  const reopenedLabel = (await page.locator('.counter .big small').innerText()).trim();
+  check('a refreshed landing page shows the new capacity',
+    reopenedLabel.replace(/\s/g, '') === '/250', reopenedLabel);
+  check('and the form is open again', (await page.locator('#btn').isDisabled()) === false);
 } catch (err) {
   failed += 1;
   console.log(`\n  FAIL  the run threw: ${err.message}`);

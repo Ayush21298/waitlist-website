@@ -7,7 +7,7 @@
  * wants, and they help a legitimate user not at all.
  */
 import { ValidationError } from '../lib/validate.js';
-import { DuplicateEntryError } from '../db/store.js';
+import { CapacityReachedError, DuplicateEntryError } from '../db/store.js';
 import { QueueOverflowError } from '../lib/semaphore.js';
 
 /**
@@ -51,6 +51,9 @@ function classify(err) {
   }
   if (err instanceof DuplicateEntryError) {
     return { status: 409, error: err.code, message: err.message };
+  }
+  if (err instanceof CapacityReachedError) {
+    return { status: 409, error: err.code, message: 'This beta is full. Thank you for your interest.' };
   }
   if (err instanceof QueueOverflowError) {
     // Shedding load deliberately. Retry-After keeps well-behaved clients from

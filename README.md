@@ -134,12 +134,25 @@ admin panel and keep the file.
 | `frontend/gate/` | The site password page — the only unauthenticated screen. |
 | `frontend/admin/` | The admin panel (statistics, list, activity log, exports). |
 | `frontend/apps/<slug>/` | One landing page per app, served at `/a/<slug>/`. |
+| `misc/` | Where design uploads land before import. Gitignored. |
 | `scripts/` | Smoke test, load test, secret generation. |
 | `data/`, `logs/` | Runtime state. Both gitignored. |
 
 ---
 
-## Adding a second app
+## The apps
+
+| App | Page | Collects | Limit |
+|---|---|---|---|
+| **Pages** | `/a/pages/` | name, email | 50 places; the form closes when full |
+| **C·Dots** | `/a/cdots/` | email only | 100 places; the page counts down |
+
+They share one backend, one database and one admin panel, but nothing else:
+different designs, different fields, and one counts up to its limit while the
+other counts down from it. What an app asks for and how many places it offers
+are rows in the `apps` table, editable from the admin panel, not code.
+
+## Adding a third app
 
 The backend already supports it; nothing in it needs changing.
 
@@ -153,6 +166,15 @@ The backend already supports it; nothing in it needs changing.
    var APP_SLUG = 'your-slug';
    var API = '/api/v1/apps/' + APP_SLUG;
    ```
+
+   Then `GET {API}/count` for the counter and `POST {API}/waitlist` to sign
+   up. If the app has a capacity, the count response carries `capacity` and
+   `remaining`, and a signup past the limit comes back as
+   `{ ok: false, error: 'full' }`.
+
+Assets go alongside the page — `frontend/apps/<slug>/assets/…` is served at
+`/a/<slug>/assets/…`. Fonts, CSS, SVG and HTML are compressed and cached
+automatically.
 
 It is then served at `/a/<slug>/`, numbers its own waitlist from 1, and shows
 up in the admin panel beside the others. Because every frontend is served
@@ -169,7 +191,11 @@ Sign in at `/admin` with the admin password.
   signups are coming from.
 - **Waitlist** — every entry with name, email, phone, position and status.
   Search across name, email and phone; filter by app and status; change a
-  status or add a note inline.
+  status or add a note inline. An app that does not collect a field shows an
+  em dash rather than a blank cell.
+- **Apps** — what each app asks for, its capacity, and its landing page. The
+  capacity is editable: raising it reopens a closed beta, and the landing
+  page picks the change up on its next load.
 - **Activity log** — a searchable record of everything that has happened:
   signups, rejections, admin actions, failed logins, lockouts, rate limiting.
 - **Apps** — register a new app or deactivate one.

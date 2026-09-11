@@ -11,7 +11,7 @@
  */
 import express from 'express';
 
-import { DuplicateEntryError } from '../db/store.js';
+import { CapacityReachedError, DuplicateEntryError } from '../db/store.js';
 import { rateLimit, SlidingWindowLimiter } from '../middleware/ratelimit.js';
 import {
   clampMeta,
@@ -133,10 +133,18 @@ export function publicRoutes({ config, store, logger }) {
             })
           : '';
         const email = validateEmail(body.email, { maxLength: config.limits.maxEmailLength });
-        const phone = validatePhone(body.phone, {
-          required: Number(app.require_phone) === 1,
-          maxLength: config.limits.maxPhoneLength,
-        });
+
+        // Same rule as the name: an app that declares it does not collect a
+        // phone number must not end up storing one just because somebody
+        // posted it. Anything else quietly accumulates personal data the app
+        // says it never asks for, and it would show up in exports.
+        const collectsPhone = Number(app.collect_phone) === 1;
+        const phone = collectsPhone
+          ? validatePhone(body.phone, {
+              required: Number(app.require_phone) === 1,
+              maxLength: config.limits.maxPhoneLength,
+            })
+          : { value: '', normalized: '' };
 
         // A durable backstop beneath the in-memory limiter: this one survives
         // a process restart, so an attacker cannot reset it by waiting for a
@@ -177,6 +185,7 @@ export function publicRoutes({ config, store, logger }) {
           // independently of the connection that made the request.
           userAgent: clampMeta(req.get('user-agent') ?? '', 300),
           ipHash: req.ipHash,
+          capacity: Number(app.capacity) || 0,
         });
 
         const total = await store.countEntries(app.id);
@@ -200,6 +209,26 @@ export function publicRoutes({ config, store, logger }) {
           duplicate: false,
         });
       } catch (err) {
+        if (err instanceof CapacityReachedError) {
+          const total = await store.countEntries(app.id).catch(() => err.capacity);
+          req.log.info('signup refused: app is full', { app: app.slug, capacity: err.capacity });
+          req.recordEvent({
+            type: 'signup.full',
+            severity: 'warn',
+            appId: app.id,
+            message: `Signup refused: ${app.name} has filled all ${err.capacity} places`,
+            detail: { capacity: err.capacity },
+          });
+          res.status(409).json({
+            ok: false,
+            error: 'full',
+            message: 'This beta is full. Thank you for your interest.',
+            total,
+            capacity: err.capacity,
+            remaining: 0,
+          });
+          return;
+        }
         if (err instanceof DuplicateEntryError) {
           // Returning the original position is friendlier than an error and
           // leaks nothing: the caller just supplied this address themselves.

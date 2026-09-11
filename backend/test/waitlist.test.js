@@ -26,6 +26,23 @@ async function visitor() {
   return client;
 }
 
+/**
+ * Creates an app with exactly the settings a test needs.
+ *
+ * Tests that depend on an app collecting a phone number, or having no
+ * capacity, used to lean on however the seeded Pages app happened to be
+ * configured. That made them break the moment its design changed -- which is
+ * a property of the fixture, not of the behaviour under test.
+ */
+async function makeApp(isolated, definition) {
+  const admin = isolated.client();
+  await admin.unlockGate();
+  await admin.signInAdmin();
+  const created = await admin.post('/api/v1/admin/apps', definition);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  return created.body.app;
+}
+
 describe('signup', () => {
   test('accepts a valid signup and assigns position 1 first', async () => {
     const isolated = await startTestServer();
@@ -75,13 +92,31 @@ describe('signup', () => {
       [{ name: '!!!', email: 'a@b.com' }, 'name'],
       [{ name: 'Valid', email: 'not-an-email' }, 'email'],
       [{ name: 'Valid', email: 'a@b' }, 'email'],
-      [{ name: 'Valid', email: 'v@example.com', phone: '123' }, 'phone'],
-      [{ name: 'Valid', email: 'v@example.com', phone: 'abc-defg' }, 'phone'],
     ];
     for (const [body, field] of cases) {
       const response = await client.post('/api/v1/apps/pages/waitlist', body);
       assert.equal(response.status, 400, `expected 400 for ${JSON.stringify(body)}`);
       assert.equal(response.body.field, field);
+    }
+  });
+
+  test('a malformed phone is reported for an app that does collect one', async () => {
+    const isolated = await startTestServer();
+    try {
+      await makeApp(isolated, { slug: 'phoneapp', name: 'Phone App', collectPhone: true });
+      const client = isolated.client();
+      await client.unlockGate();
+      for (const phone of ['123', 'abc-defg']) {
+        const response = await client.post('/api/v1/apps/phoneapp/waitlist', {
+          name: 'Valid',
+          email: `v-${phone}@example.com`,
+          phone,
+        });
+        assert.equal(response.status, 400, `expected 400 for phone ${phone}`);
+        assert.equal(response.body.field, 'phone');
+      }
+    } finally {
+      await isolated.stop();
     }
   });
 
@@ -209,8 +244,11 @@ describe('admin management', () => {
     client = isolated.client();
     await client.unlockGate();
     await client.signInAdmin();
+    // Its own app, collecting a phone number, so these tests do not depend on
+    // how the shipped Pages design happens to be configured this week.
+    await client.post('/api/v1/admin/apps', { slug: 'people', name: 'People', collectPhone: true });
     for (let i = 0; i < 5; i += 1) {
-      await client.post('/api/v1/apps/pages/waitlist', {
+      await client.post('/api/v1/apps/people/waitlist', {
         name: `Person ${i}`,
         email: `person${i}@example.com`,
         phone: i % 2 ? `010-0000-000${i}` : '',
@@ -248,7 +286,7 @@ describe('admin management', () => {
     assert.equal(updated.body.entry.note, 'sent');
 
     await client.patch(`/api/v1/admin/entries/${list.body.entries[1].id}`, { status: 'removed' });
-    const count = await client.get('/api/v1/apps/pages/count');
+    const count = await client.get('/api/v1/apps/people/count');
     assert.equal(count.body.count, 4, 'removed entries drop out of the public counter');
 
     const events = await client.get('/api/v1/admin/events?type=admin.entry_updated');
@@ -274,11 +312,11 @@ describe('admin management', () => {
     const overview = await client.get('/api/v1/admin/overview');
     assert.equal(overview.body.totals.total, 5);
     assert.equal(overview.body.totals.withPhone, 2);
-    // Found by slug, not by index: more than one app is seeded and the list
-    // is ordered by display name, so a positional assertion is brittle.
-    const pages = overview.body.apps.find((a) => a.slug === 'pages');
-    assert.ok(pages, 'the pages app should appear in the overview');
-    assert.equal(pages.total, 5);
+    // Found by slug, not by index: several apps exist and the list is ordered
+    // by display name, so a positional assertion is brittle.
+    const people = overview.body.apps.find((a) => a.slug === 'people');
+    assert.ok(people, 'the app under test should appear in the overview');
+    assert.equal(people.total, 5);
     assert.ok(Array.isArray(overview.body.signupsByDay));
   });
 
@@ -478,9 +516,11 @@ describe('per-app fields', () => {
   test('an app with no capacity reports remaining as null, never a negative', async () => {
     const isolated = await startTestServer();
     try {
+      // Created without a capacity, which is the default and means "no limit".
+      await makeApp(isolated, { slug: 'unlimited', name: 'Unlimited' });
       const client = isolated.client();
       await client.unlockGate();
-      const response = await client.get('/api/v1/apps/pages/count');
+      const response = await client.get('/api/v1/apps/unlimited/count');
       assert.equal(response.body.capacity, 0);
       assert.equal(response.body.remaining, null);
     } finally {
@@ -488,7 +528,7 @@ describe('per-app fields', () => {
     }
   });
 
-  test('remaining floors at zero once capacity is exceeded', async () => {
+  test('remaining floors at zero when capacity is lowered below the signups already taken', async () => {
     const isolated = await startTestServer({ RL_SIGNUP_MAX: '500' });
     try {
       const adminClient = isolated.client();
@@ -497,16 +537,140 @@ describe('per-app fields', () => {
       const apps = await adminClient.get('/api/v1/admin/apps');
       const cdots = apps.body.apps.find((a) => a.slug === 'cdots');
       assert.equal(cdots.capacity, 100);
-      await adminClient.patch(`/api/v1/admin/apps/${cdots.id}`, { capacity: 2 });
 
       const client = isolated.client();
       await client.unlockGate();
       for (let i = 0; i < 3; i += 1) {
         await client.post('/api/v1/apps/cdots/waitlist', { email: `over${i}@example.com` });
       }
+
+      // Signing up can no longer exceed the limit, so the only way to end up
+      // over it is an administrator reducing it afterwards. The arithmetic
+      // must still report no places left rather than a negative number.
+      await adminClient.patch(`/api/v1/admin/apps/${cdots.id}`, { capacity: 2 });
+
       const response = await client.get('/api/v1/apps/cdots/count');
       assert.equal(response.body.count, 3);
       assert.equal(response.body.remaining, 0, 'must floor at zero rather than go negative');
+    } finally {
+      await isolated.stop();
+    }
+  });
+});
+
+describe('data minimisation', () => {
+  test('an app that does not collect phones refuses to store one that is posted', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      // Pages collects a name but not a phone number.
+      await client.post('/api/v1/apps/pages/waitlist', {
+        name: 'Phone Sender',
+        email: 'phonesender@example.com',
+        phone: '010-9999-8888',
+      });
+
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const list = await adminClient.get('/api/v1/admin/entries?search=phonesender');
+      assert.equal(list.body.entries[0].phone, '', 'a phone must not be stored by an app that does not collect one');
+      assert.equal(list.body.entries[0].name, 'Phone Sender', 'the name it does collect is kept');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('an invalid phone is not even an error when the app does not collect phones', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      const response = await client.post('/api/v1/apps/pages/waitlist', {
+        name: 'Junk Phone',
+        email: 'junkphone@example.com',
+        phone: 'not a phone number at all',
+      });
+      assert.equal(response.status, 201, 'an ignored field should not fail the signup');
+    } finally {
+      await isolated.stop();
+    }
+  });
+});
+
+describe('capacity enforcement', () => {
+  test('a full app refuses new signups but still recognises existing ones', async () => {
+    const isolated = await startTestServer({ RL_SIGNUP_MAX: '500' });
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const apps = await adminClient.get('/api/v1/admin/apps');
+      const pages = apps.body.apps.find((a) => a.slug === 'pages');
+      await adminClient.patch(`/api/v1/admin/apps/${pages.id}`, { capacity: 3 });
+
+      for (let i = 0; i < 3; i += 1) {
+        const r = await client.post('/api/v1/apps/pages/waitlist', {
+          name: `Filler ${i}`,
+          email: `filler${i}@example.com`,
+        });
+        assert.equal(r.status, 201, `signup ${i} should fit`);
+      }
+
+      const overflow = await client.post('/api/v1/apps/pages/waitlist', {
+        name: 'Too Late',
+        email: 'toolate@example.com',
+      });
+      assert.equal(overflow.status, 409);
+      assert.equal(overflow.body.error, 'full', 'the landing page keys off this exact code');
+      assert.equal(overflow.body.remaining, 0);
+
+      // Already on the list: they hold a place, so they are not turned away.
+      const returning = await client.post('/api/v1/apps/pages/waitlist', {
+        name: 'Filler 0',
+        email: 'filler0@example.com',
+      });
+      assert.equal(returning.status, 200);
+      assert.equal(returning.body.duplicate, true);
+      assert.equal(returning.body.position, 1);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('a simultaneous rush cannot push an app past its capacity', async () => {
+    const isolated = await startTestServer({ RL_SIGNUP_MAX: '500' });
+    try {
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const apps = await adminClient.get('/api/v1/admin/apps');
+      const cdots = apps.body.apps.find((a) => a.slug === 'cdots');
+      await adminClient.patch(`/api/v1/admin/apps/${cdots.id}`, { capacity: 10 });
+
+      const client = isolated.client();
+      await client.unlockGate();
+
+      // Thirty people going for ten places at the same instant. A capacity
+      // check made outside the insert lock would let several through.
+      const responses = await Promise.all(
+        Array.from({ length: 30 }, (_, i) =>
+          client.post('/api/v1/apps/cdots/waitlist', { email: `rush${i}@example.com` }),
+        ),
+      );
+      const accepted = responses.filter((r) => r.status === 201);
+      const refused = responses.filter((r) => r.body?.error === 'full');
+
+      assert.equal(accepted.length, 10, 'exactly the capacity should be admitted');
+      assert.equal(refused.length, 20, 'everyone else should be told it is full');
+
+      const count = await client.get('/api/v1/apps/cdots/count');
+      assert.equal(count.body.count, 10, 'the stored count must never exceed capacity');
+      assert.equal(count.body.remaining, 0);
     } finally {
       await isolated.stop();
     }

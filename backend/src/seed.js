@@ -14,8 +14,12 @@ export const SEED_APPS = [
     slug: 'pages',
     name: 'Pages',
     description: 'Your day, delivered as a single page each evening.',
-    collectPhone: true,
+    // The design asks for a name and an email address, nothing more.
+    collectPhone: false,
     requirePhone: false,
+    // A fifty-place beta for Samsung Research staff; the page counts up to it
+    // and closes the form on arrival.
+    capacity: 50,
   },
   {
     slug: 'cdots',

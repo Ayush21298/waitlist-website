@@ -151,6 +151,28 @@ export function buildMigrations(dialect) {
         // column is NOT NULL, so nothing needs backfilling.
       ],
     },
+
+    {
+      version: 3,
+      name: 'pages_capacity_and_no_phone',
+      statements: [
+        // The Pages landing page became a fifty-place beta and stopped asking
+        // for a phone number. `ensureApps` only creates apps that are missing,
+        // deliberately, so that edits made in the admin panel are never
+        // overwritten on restart -- which means an existing database needs
+        // this one-off reconciliation to match the shipped design.
+        //
+        // Scoped to the seeded slug and to the values it had before, so an
+        // operator who has already set a capacity or re-enabled the phone
+        // field on purpose keeps their choice.
+        `UPDATE apps SET capacity = 50 WHERE slug = 'pages' AND capacity = 0`,
+        `UPDATE apps SET collect_phone = 0 WHERE slug = 'pages' AND collect_phone = 1`,
+
+        // Phone numbers already collected are left untouched: they are real
+        // data someone gave us, and they still appear in the admin list and
+        // in exports.
+      ],
+    },
   ];
 }
 

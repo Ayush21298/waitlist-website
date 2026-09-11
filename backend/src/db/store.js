@@ -20,6 +20,24 @@ export class DuplicateEntryError extends Error {
   }
 }
 
+/**
+ * Thrown when an app has filled every place it offers.
+ *
+ * Checked inside the same locked transaction that assigns a position, not
+ * before it: two people submitting for the last remaining place would both
+ * pass a check made outside the lock, and the beta would quietly end up one
+ * over its limit.
+ */
+export class CapacityReachedError extends Error {
+  constructor(capacity) {
+    super('This beta is full.');
+    this.name = 'CapacityReachedError';
+    this.code = 'full';
+    this.status = 409;
+    this.capacity = capacity;
+  }
+}
+
 /** Recognises a unique-constraint violation from either engine. */
 function isUniqueViolation(err) {
   return (
@@ -182,6 +200,17 @@ export class Store {
         ]);
         if (existing) throw new DuplicateEntryError(existing);
 
+        // Someone already on the list is let through above, before this check:
+        // they are not taking a new place, and telling a returning visitor the
+        // beta is full when they are already in it would be simply wrong.
+        if (entry.capacity > 0) {
+          const taken = await tx.get(
+            "SELECT COUNT(*) AS total FROM entries WHERE app_id = ? AND status <> 'removed'",
+            [entry.appId],
+          );
+          if (Number(taken.total) >= entry.capacity) throw new CapacityReachedError(entry.capacity);
+        }
+
         const row = await tx.get(
           'SELECT COALESCE(MAX(position), 0) + 1 AS next FROM entries WHERE app_id = ?',
           [entry.appId],
@@ -215,7 +244,7 @@ export class Store {
         return tx.get('SELECT * FROM entries WHERE id = ?', [id]);
       });
     } catch (err) {
-      if (err instanceof DuplicateEntryError) throw err;
+      if (err instanceof DuplicateEntryError || err instanceof CapacityReachedError) throw err;
       // A concurrent insert can still lose the unique-constraint race even
       // with the lock, for instance across two processes on Postgres. Resolve
       // it the same way the in-transaction check does.

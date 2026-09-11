@@ -358,7 +358,9 @@
         <div class="card-head">
           <div>
             <h3>Registered apps</h3>
-            <p class="hint">Each app has its own frontend and its own numbering, sharing this backend.</p>
+            <p class="hint">Each app has its own frontend and its own numbering, sharing this backend.
+              Capacity is editable &mdash; leave it empty for no limit. A landing page picks up
+              the new figure the next time it is loaded.</p>
           </div>
         </div>
         <div class="scroll"><table id="apps-table"></table></div>
@@ -1074,6 +1076,63 @@
     select.value = current;
   }
 
+  /**
+   * Capacity, editable in place.
+   *
+   * Saved on Enter or on leaving the field, never on every keystroke: typing
+   * "100" would otherwise pass through 1 and 10, and a landing page reloaded
+   * at that instant would tell people the beta was full.
+   *
+   * Empty or 0 means no limit, which is how the backend reads it too.
+   */
+  function capacityEditor(app){
+    var wrap = el('div', { style: 'display:flex;align-items:center;justify-content:flex-end;gap:7px' });
+    var input = el('input', {
+      type: 'number',
+      min: '0',
+      step: '1',
+      value: app.capacity ? String(app.capacity) : '',
+      placeholder: 'No limit',
+      'aria-label': 'Capacity for ' + app.name,
+      style: 'width:104px;height:32px;text-align:right;font-variant-numeric:tabular-nums'
+    });
+
+    var saving = false;
+    function save(){
+      if (saving) return;
+      var raw = input.value.trim();
+      var next = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
+      if (!isFinite(next)){ input.value = app.capacity ? String(app.capacity) : ''; return; }
+      if (next === app.capacity) return;
+
+      saving = true;
+      input.disabled = true;
+      api('/apps/' + app.id, { method: 'PATCH', body: { capacity: next } })
+        .then(function(){
+          app.capacity = next;
+          toast(next
+            ? app.name + ' capacity set to ' + num(next) + '.'
+            : app.name + ' now has no limit.');
+          // The totals and the "places left" figures move with it.
+          loadOverview();
+        })
+        .catch(function(err){
+          input.value = app.capacity ? String(app.capacity) : '';
+          fail(err);
+        })
+        .then(function(){ saving = false; input.disabled = false; });
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){ e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape'){ input.value = app.capacity ? String(app.capacity) : ''; input.blur(); }
+    });
+
+    wrap.appendChild(input);
+    return wrap;
+  }
+
   function renderApps(apps){
     var rows = apps.map(function(app){
       var toggle = el('button', { class: 'btn ghost sm' }, [app.isActive ? 'Deactivate' : 'Activate']);
@@ -1092,7 +1151,7 @@
         ])]),
         el('td', { text: describeField(app.collectName, app.requireName) }),
         el('td', { text: describeField(app.collectPhone, app.requirePhone) }),
-        el('td', { class: 'num', text: app.capacity ? num(app.capacity) : '\u2014' }),
+        el('td', { class: 'num' }, [capacityEditor(app)]),
         el('td', null, [toggle])
       ]);
     });
