@@ -17,6 +17,18 @@ export const SEED_APPS = [
     collectPhone: true,
     requirePhone: false,
   },
+  {
+    slug: 'cdots',
+    name: 'C\u00B7Dots',
+    description: 'Ask the people you trust.',
+    // The landing page asks for an email address and nothing else.
+    collectName: false,
+    requireName: false,
+    collectPhone: false,
+    requirePhone: false,
+    // A hundred-place beta; the page counts down rather than up.
+    capacity: 100,
+  },
 ];
 
 export default SEED_APPS;

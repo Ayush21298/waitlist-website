@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C·Dots — 베타 테스터 등록</title>
+<meta name="description" content="신뢰하는 사람들에게 물어보세요. 지금 등록하면 토큰 무제한 이용.">
+
+<!-- Preview thumbnail (Open Graph / Twitter). NOTE: crawlers need absolute
+     URLs — once deployed, replace assets/og-thumbnail.jpg with the full
+     https://yourdomain.com/assets/og-thumbnail.jpg -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="C·Dots — 신뢰하는 사람들에게 물어보세요">
+<meta property="og:description" content="지금 등록하면 토큰 무제한 이용. 베타 테스터 100명 한정.">
+<meta property="og:image" content="assets/og-thumbnail.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="C·Dots — 신뢰하는 사람들에게 물어보세요">
+<meta name="twitter:description" content="지금 등록하면 토큰 무제한 이용. 베타 테스터 100명 한정.">
+<meta name="twitter:image" content="assets/og-thumbnail.jpg">
+<style>
+  @font-face{
+    font-family:'One UI Sans';
+    src:url('assets/font/OneUISansGUI-300Light.ttf') format('truetype');
+    font-weight:300; font-display:block;
+  }
+  @font-face{
+    font-family:'One UI Sans';
+    src:url('assets/font/OneUISansGUI-400Regular.ttf') format('truetype');
+    font-weight:400; font-display:block;
+  }
+  @font-face{
+    font-family:'One UI Sans';
+    src:url('assets/font/OneUISansGUI-600SemiBold.ttf') format('truetype');
+    font-weight:600; font-display:block;
+  }
+  @font-face{
+    font-family:'One UI Sans';
+    src:url('assets/font/OneUISansGUI-700Bold.ttf') format('truetype');
+    font-weight:700; font-display:block;
+  }
+  @font-face{
+    font-family:'Samsung Sharp Sans';
+    src:url('assets/font/SAMSUNGSHARPSANS-REGULAR.TTF') format('truetype');
+    font-weight:400; font-display:block;
+  }
+  @font-face{
+    font-family:'Samsung Sharp Sans';
+    src:url('assets/font/SAMSUNGSHARPSANS-MEDIUM.TTF') format('truetype');
+    font-weight:500; font-display:block;
+  }
+  @font-face{
+    font-family:'Samsung Sharp Sans';
+    src:url('assets/font/SAMSUNGSHARPSANS-BOLD.TTF') format('truetype');
+    font-weight:700; font-display:block;
+  }
+
+  /* ---- Scale system ------------------------------------------------
+     Design canvas: 1920 x 1080. 1rem = 10 design px.
+     --s is the uniform scale factor (kept in sync by JS below, with a
+     pure-CSS fallback for browsers that support length division).   */
+  :root{
+    /* Height drives the scale: the vertical composition stays identical on
+       any landscape screen; the width term only kicks in on narrow screens */
+    --s: min(calc(100vw / 1100px), calc(100vh / 1080px));
+  }
+  html{ font-size: calc(var(--s, 1) * 10px); }
+
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    background:#fff;
+    font-family:'One UI Sans','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---- Preload fade-in: page starts white, content fades in loaded */
+  .bg, .content{ transition:opacity .8s ease; }
+  body:not(.ready) .bg,
+  body:not(.ready) .content{ opacity:0; }
+
+  /* ---- Background phone image (pinned to bottom, scales with page) */
+  .bg{
+    position:fixed;
+    left:50%; bottom:0;
+    transform:translateX(-50%);
+    width:192rem;              /* fixed to the scale: crops at the sides on
+                                  narrow screens, white margins on wide ones */
+    pointer-events:none;
+    user-select:none;
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 9rem);
+            mask-image:linear-gradient(to bottom, transparent 0, #000 9rem);
+  }
+
+  /* ---- Content column --------------------------------------------- */
+  .content{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    /* centers the text block in the space above the phone when there is
+       extra vertical room (tall/portrait screens), 8.4rem otherwise */
+    padding-top:max(7rem, calc((100vh - 102rem) / 2));
+  }
+  .logo{
+    height:5.6rem;
+    width:auto;
+  }
+  h1{
+    margin-top:4rem;
+    font-size:7.2rem;
+    font-weight:700;
+    letter-spacing:-0.02em;
+    color:#0c0c0e;
+    line-height:1.15;
+  }
+  .sub{
+    margin-top:1.2rem;
+    font-size:4.2rem;
+    font-weight:300;
+    letter-spacing:-0.01em;
+    color:#b4b4bb;
+  }
+
+  /* ---- Action zone (form + counter, swapped for welcome on success) */
+  .zone{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .zone .pill, .zone .counter, .zone .msg{ transition:opacity .4s ease; }
+  .zone.celebrating .pill,
+  .zone.celebrating .counter,
+  .zone.celebrating .msg,
+  .zone.clearing .pill,
+  .zone.clearing .counter,
+  .zone.clearing .msg{ opacity:0; pointer-events:none; }
+  .welcome{
+    /* sits exactly over the pill, vertically centered on it */
+    position:absolute;
+    top:5.6rem; height:7.9rem; left:0; right:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:4.8rem;
+    font-weight:600;
+    letter-spacing:-0.02em;
+    color:#4b8f5f;
+    opacity:0;
+    transform:translateY(1.2rem);
+    pointer-events:none;
+    transition:opacity .45s ease, transform .45s ease;
+  }
+  .zone.celebrating .welcome{ opacity:1; transform:none; }
+
+  /* ---- Email pill -------------------------------------------------- */
+  .pill{
+    margin-top:5.6rem;
+    position:relative;
+    width:60rem;
+    height:7.9rem;
+  }
+  .pill input{
+    width:100%; height:100%;
+    border:1px solid #e7e7ec;
+    border-radius:10rem;
+    background:#fff;
+    box-shadow:0 .6rem 2.4rem rgba(20,20,40,.06);
+    padding:0 9.6rem 0 3.6rem;
+    font-family:inherit;
+    font-size:2.8rem;
+    font-weight:400;
+    color:#222;
+    outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .pill input::placeholder{ color:#b9b9c0; }
+  .pill input:focus{
+    border-color:#c9c9d4;
+    box-shadow:0 .8rem 2.8rem rgba(20,20,40,.10);
+  }
+  .pill button{
+    position:absolute;
+    right:1.2rem; top:50%;
+    transform:translateY(-50%);
+    width:5.6rem; height:5.6rem;
+    border:none;
+    border-radius:50%;
+    background:linear-gradient(180deg,#dfdfe5 0%,#c9c9d2 100%);
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:filter .15s, transform .15s;
+  }
+  .pill button:hover{ filter:brightness(1.05); }
+  .pill button:active{ transform:translateY(-50%) scale(.94); }
+  /* black overlay fades in when the field has text */
+  .pill button::before{
+    content:'';
+    position:absolute; inset:0;
+    border-radius:50%;
+    background:linear-gradient(180deg,#3a3a40 0%,#0c0c0e 100%);
+    opacity:0;
+    transition:opacity .25s ease;
+  }
+  .pill.filled button::before{ opacity:1; }
+  .pill.error button::before,
+  .pill.done  button::before{ opacity:0; }
+  .pill button svg{ width:2.5rem; height:2.5rem; display:block; position:relative; z-index:1; }
+  .ico-check{ display:none !important; }
+  .pill.done .ico-arrow{ display:none !important; }
+  .pill.done .ico-check{ display:block !important; }
+
+  /* ---- Counter ------------------------------------------------------ */
+  .counter{
+    margin-top:3rem;
+    display:flex;
+    align-items:center;
+    gap:1rem;
+    color:#0c0c0e;
+  }
+  .counter .num{
+    font-family:'Samsung Sharp Sans','One UI Sans',sans-serif;
+    font-weight:500;
+    font-size:5.2rem;
+    letter-spacing:-0.01em;
+  }
+  .counter .total{
+    font-family:'Samsung Sharp Sans','One UI Sans',sans-serif;
+    font-weight:400;
+    font-size:2.4rem;
+    color:#9a9aa1;
+  }
+  .counter .label{
+    margin-left:1.2rem;
+    font-size:3.2rem;
+    font-weight:400;
+    color:#b4b4bb;
+  }
+
+  /* ---- Feedback / success state ------------------------------------ */
+  .msg{
+    margin-top:1.6rem;
+    min-height:2.6rem;
+    font-size:2rem;
+    color:#e05c5c;
+    opacity:0;
+    transition:opacity .2s;
+  }
+  .msg.show{ opacity:1; }
+  .msg.ok{ color:#4b8f5f; }
+
+  /* ---- Invalid email: shake + orange ------------------------------- */
+  .pill.error{ animation:shake .55s cubic-bezier(.36,.07,.19,.97); }
+  .pill.error input{
+    border-color:#f5a45c;
+    box-shadow:0 .6rem 2.4rem rgba(245,145,60,.22);
+    color:#d8823c;
+  }
+  .pill.error input::placeholder{ color:#eab68c; }
+  .pill.error button{
+    background:linear-gradient(180deg,#f6bd85 0%,#ec9c55 100%);
+  }
+  @keyframes shake{
+    10%, 90%{ transform:translateX(-.6rem); }
+    20%, 80%{ transform:translateX(1rem); }
+    30%, 50%, 70%{ transform:translateX(-1.5rem); }
+    40%, 60%{ transform:translateX(1.5rem); }
+  }
+
+  .pill.done input{ color:#4b8f5f; }
+  .pill.done button{
+    background:linear-gradient(180deg,#7bc98f 0%,#5aa871 100%);
+    animation:pop .45s cubic-bezier(.2,1.6,.4,1);
+  }
+  @keyframes pop{
+    0%{ transform:translateY(-50%) scale(1); }
+    40%{ transform:translateY(-50%) scale(1.35); }
+    100%{ transform:translateY(-50%) scale(1); }
+  }
+
+  /* ---- Success particle burst -------------------------------------- */
+  .burst{
+    position:fixed; inset:0;
+    pointer-events:none;
+    z-index:10;
+    overflow:hidden;
+  }
+  .burst span{
+    position:absolute; left:0; top:0;
+    will-change:transform,opacity;
+    line-height:1;
+  }
+  .burst .dot{ border-radius:50%; }
+</style>
+</head>
+<body>
+
+  <img class="bg" src="assets/bg-phone.png" alt="">
+
+  <main class="content">
+    <img class="logo" src="assets/logo.svg" alt="C·Dots">
+    <h1>신뢰하는 사람들에게 물어보세요</h1>
+    <p class="sub">지금 등록하면 토큰 무제한 이용</p>
+
+    <div class="zone" id="zone">
+    <form class="pill" id="wl" novalidate>
+      <input type="email" id="email" placeholder="이메일을 남겨주세요"
+             autocomplete="email" spellcheck="false">
+      <button type="submit" aria-label="등록" id="go">
+        <svg class="ico-arrow" viewBox="0 0 24 24" fill="none">
+          <path d="M5 12h13M12 6l6 6-6 6" stroke="#fff" stroke-width="2.4"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg class="ico-check" viewBox="0 0 24 24" fill="none">
+          <path d="M5 12.5l5 5L19 7" stroke="#fff" stroke-width="2.6"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </form>
+
+    <div class="counter">
+      <span class="num" id="remaining">50</span><span class="total">/100</span>
+      <span class="label">자리 남음</span>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="welcome">베타에 오신 걸 환영해요</div>
+    </div>
+  </main>
+
+<script>
+  /* Keep --s in sync for browsers without CSS length-division support */
+  (function(){
+    function fit(){
+      var s = Math.min(innerWidth/1100, innerHeight/1080);
+      document.documentElement.style.setProperty('--s', s);
+    }
+    addEventListener('resize', fit); fit();
+  })();
+
+  /* Preload: stay white until images + fonts are ready, then fade in */
+  (function(){
+    var waits = Array.prototype.map.call(document.images, function(im){
+      return im.complete ? Promise.resolve() :
+        new Promise(function(res){
+          im.addEventListener('load', res);
+          im.addEventListener('error', res);
+        });
+    });
+    if (document.fonts && document.fonts.ready) waits.push(document.fonts.ready);
+    var safety = new Promise(function(res){ setTimeout(res, 5000); }); /* never hang */
+    Promise.race([Promise.all(waits), safety]).then(function(){
+      document.body.classList.add('ready');
+    });
+  })();
+
+  /* =========================================================
+     설정 — Apps Script 웹앱 배포 후 URL을 여기에 넣으세요.
+     비어 있으면 데모 모드 (숫자는 DEMO_REMAINING, 제출은 저장 안 됨).
+     ========================================================= */
+  var ENDPOINT = '';            // 예: 'https://script.google.com/macros/s/XXXX/exec'
+  var TOTAL = 100;
+  var DEMO_REMAINING = 50;
+
+  var form = document.getElementById('wl');
+  var input = document.getElementById('email');
+  var msg = document.getElementById('msg');
+  var remainingEl = document.getElementById('remaining');
+  var busy = false, done = false;
+
+  function setMsg(text, ok){
+    msg.textContent = text || '';
+    msg.classList.toggle('ok', !!ok);
+    msg.classList.toggle('show', !!text);
+  }
+
+  function refreshCount(){
+    if (!ENDPOINT){ remainingEl.textContent = DEMO_REMAINING; return; }
+    fetch(ENDPOINT).then(function(r){ return r.json(); }).then(function(d){
+      var count = d.count || 0;
+      remainingEl.textContent = Math.max(0, TOTAL - count);
+    }).catch(function(){});
+  }
+  refreshCount();
+
+  /* Firework burst from the submit button */
+  function celebrate(){
+    var btn = document.getElementById('go');
+    var r = btn.getBoundingClientRect();
+    var cx = r.left + r.width/2, cy = r.top + r.height/2;
+    var s = Math.min(innerWidth/1100, innerHeight/1080);
+    var EMOJI = ['🎉','✨','🎊','⭐','💜'];
+    var COLORS = ['#8b7cf6','#b7a9ff','#ffd166','#ff8fa3','#7bd7a8','#7cc7f6'];
+    var layer = document.createElement('div');
+    layer.className = 'burst';
+    document.body.appendChild(layer);
+    var parts = [];
+
+    function spawn(count, power){
+      for (var i = 0; i < count; i++){
+        var el = document.createElement('span');
+        if (Math.random() < 0.4){
+          el.textContent = EMOJI[Math.floor(Math.random()*EMOJI.length)];
+          el.style.fontSize = (34 + Math.random()*28)*s + 'px';
+        } else {
+          el.className = 'dot';
+          var d = (9 + Math.random()*10)*s;
+          el.style.width = d+'px'; el.style.height = d+'px';
+          el.style.background = COLORS[Math.floor(Math.random()*COLORS.length)];
+        }
+        /* mostly upward fan */
+        var ang = -Math.PI/2 + (Math.random()-0.5)*Math.PI*1.5;
+        var sp  = (2.4 + Math.random()*4)*s*power;
+        parts.push({
+          el:el, x:cx, y:cy,
+          vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+          rot:Math.random()*360, vr:(Math.random()-0.5)*7,
+          life:0, ttl:190 + Math.random()*90
+        });
+        layer.appendChild(el);
+      }
+    }
+
+    spawn(28, 1);                                   /* big initial burst  */
+    setTimeout(function(){ spawn(16, 0.7);  }, 400); /* two follow-up pops */
+    setTimeout(function(){ spawn(12, 0.55); }, 850);
+
+    var g = 0.05*s;
+    function tick(){
+      var alive = false;
+      for (var i = 0; i < parts.length; i++){
+        var p = parts[i];
+        if (p.life > p.ttl){ p.el.style.opacity = 0; continue; }
+        alive = true;
+        p.life++;
+        p.x += p.vx; p.y += p.vy;
+        p.vy += g; p.vx *= 0.992;
+        p.rot += p.vr;
+        var t = 1 - p.life/p.ttl;
+        p.el.style.transform = 'translate('+p.x+'px,'+p.y+'px) rotate('+p.rot+'deg) translate(-50%,-50%)';
+        p.el.style.opacity = t < 0.35 ? t/0.35 : 1;
+      }
+      if (alive) requestAnimationFrame(tick);
+      else layer.remove();
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* typing clears the orange error state and activates the black button */
+  input.addEventListener('input', function(){
+    form.classList.remove('error');
+    form.classList.toggle('filled', input.value.trim().length > 0);
+  });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if (busy || done) return;
+    var email = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      form.classList.remove('error');
+      void form.offsetWidth;          /* restart the shake animation */
+      form.classList.add('error');
+      input.focus();
+      return;
+    }
+    form.classList.remove('error');
+    setMsg('');
+    busy = true;
+
+    function success(){
+      done = true; busy = false;
+      form.classList.add('done');
+      input.readOnly = true;
+      var n = parseInt(remainingEl.textContent, 10);
+      if (n > 0) remainingEl.textContent = n - 1;
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        celebrate();
+      }
+      var zone = document.getElementById('zone');
+      /* let the green check + burst breathe, then swap to the welcome
+         message for 2s, then fade the fresh form back in */
+      setTimeout(function(){
+        zone.classList.add('celebrating');
+        /* 1. welcome fades out completely (everything hidden) ... */
+        setTimeout(function(){
+          zone.classList.remove('celebrating');
+          zone.classList.add('clearing');
+          /* 2. ... then the fresh form fades back in */
+          setTimeout(function(){
+            zone.classList.remove('clearing');
+            form.classList.remove('done');
+            form.classList.remove('filled');
+            input.readOnly = false;
+            input.value = '';
+            done = false;
+          }, 550);
+        }, 2450);
+      }, 800);
+    }
+
+    if (!ENDPOINT){ setTimeout(success, 400); return; }
+
+    fetch(ENDPOINT, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ email: email })
+    }).then(function(r){ return r.json(); }).then(function(){
+      success();
+    }).catch(function(){
+      busy = false;
+      setMsg('잠시 후 다시 시도해주세요');
+    });
+  });
+</script>
+</body>
+</html>

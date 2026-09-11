@@ -219,8 +219,11 @@ export function adminRoutes({ config, store, auth, logger }) {
           name: a.name,
           description: a.description,
           isActive: Number(a.is_active) === 1,
+          collectName: Number(a.collect_name) === 1,
+          requireName: Number(a.require_name) === 1,
           collectPhone: Number(a.collect_phone) === 1,
           requirePhone: Number(a.require_phone) === 1,
+          capacity: Number(a.capacity) || 0,
           createdAt: a.created_at,
         })),
       });
@@ -243,6 +246,9 @@ export function adminRoutes({ config, store, auth, logger }) {
         description: validateNote(req.body?.description ?? '', { maxLength: 300 }),
         collectPhone: req.body?.collectPhone !== false,
         requirePhone: req.body?.requirePhone === true,
+        collectName: req.body?.collectName !== false,
+        requireName: req.body?.requireName !== false,
+        capacity: intParam(req.body?.capacity, { min: 0, max: 10_000_000, fallback: 0 }),
       });
       req.recordEvent({
         type: 'admin.app_created',
@@ -273,6 +279,11 @@ export function adminRoutes({ config, store, auth, logger }) {
       if (req.body?.isActive !== undefined) fields.isActive = req.body.isActive === true;
       if (req.body?.collectPhone !== undefined) fields.collectPhone = req.body.collectPhone === true;
       if (req.body?.requirePhone !== undefined) fields.requirePhone = req.body.requirePhone === true;
+      if (req.body?.collectName !== undefined) fields.collectName = req.body.collectName === true;
+      if (req.body?.requireName !== undefined) fields.requireName = req.body.requireName === true;
+      if (req.body?.capacity !== undefined) {
+        fields.capacity = intParam(req.body.capacity, { min: 0, max: 10_000_000, fallback: 0 });
+      }
 
       const app = await store.updateApp(id, fields);
       req.recordEvent({

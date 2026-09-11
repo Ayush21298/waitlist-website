@@ -53,6 +53,9 @@ export function buildMigrations(dialect) {
            id           ${ID},
            app_id       ${FK} NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
            position     INTEGER NOT NULL,
+           -- May be empty: an app can be configured to collect an email
+           -- address and nothing else. NOT NULL still holds; '' is the
+           -- "not collected" value, which keeps every query total.
            name         TEXT NOT NULL,
            email        TEXT NOT NULL,
            email_key    TEXT NOT NULL,
@@ -126,6 +129,26 @@ export function buildMigrations(dialect) {
            request_id TEXT NOT NULL DEFAULT ''
          )`,
         `CREATE INDEX IF NOT EXISTS auth_attempts_lookup_idx ON auth_attempts (kind, ip_hash, ts DESC)`,
+      ],
+    },
+
+    {
+      version: 2,
+      name: 'per_app_name_and_capacity',
+      statements: [
+        // Not every product asks for a name. C-Dots collects an email address
+        // and nothing else, so whether a name is collected -- and whether it
+        // is mandatory -- has to be a property of the app rather than of the
+        // whole platform. Both default to 1 so existing apps are unchanged.
+        `ALTER TABLE apps ADD COLUMN collect_name INTEGER NOT NULL DEFAULT 1`,
+        `ALTER TABLE apps ADD COLUMN require_name INTEGER NOT NULL DEFAULT 1`,
+
+        // A limited beta advertises places remaining rather than signups so
+        // far. 0 means no limit, which is what every existing app wants.
+        `ALTER TABLE apps ADD COLUMN capacity INTEGER NOT NULL DEFAULT 0`,
+
+        // Entries predating this migration always carried a name, and the
+        // column is NOT NULL, so nothing needs backfilling.
       ],
     },
   ];

@@ -274,7 +274,11 @@ describe('admin management', () => {
     const overview = await client.get('/api/v1/admin/overview');
     assert.equal(overview.body.totals.total, 5);
     assert.equal(overview.body.totals.withPhone, 2);
-    assert.equal(overview.body.apps[0].slug, 'pages');
+    // Found by slug, not by index: more than one app is seeded and the list
+    // is ordered by display name, so a positional assertion is brittle.
+    const pages = overview.body.apps.find((a) => a.slug === 'pages');
+    assert.ok(pages, 'the pages app should appear in the overview');
+    assert.equal(pages.total, 5);
     assert.ok(Array.isArray(overview.body.signupsByDay));
   });
 
@@ -393,5 +397,118 @@ describe('health', () => {
     const ready = await client.get('/readyz');
     assert.equal(ready.status, 200);
     assert.equal(ready.body.status, 'ready');
+  });
+});
+
+describe('per-app fields', () => {
+  test('an email-only app accepts a signup with no name', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      const response = await client.post('/api/v1/apps/cdots/waitlist', { email: 'noname@example.com' });
+      assert.equal(response.status, 201, JSON.stringify(response.body));
+      assert.equal(response.body.position, 1);
+
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const list = await adminClient.get('/api/v1/admin/entries?search=noname');
+      assert.equal(list.body.total, 1);
+      assert.equal(list.body.entries[0].name, '', 'the stored name should be empty, not a placeholder');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('an app that requires a name still rejects a signup without one', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      const response = await client.post('/api/v1/apps/pages/waitlist', { email: 'anon@example.com' });
+      assert.equal(response.status, 400);
+      assert.equal(response.body.field, 'name');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('a name sent to an email-only app is discarded rather than stored', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      await client.post('/api/v1/apps/cdots/waitlist', { email: 'ignored@example.com', name: 'Should Not Persist' });
+
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const list = await adminClient.get('/api/v1/admin/entries?search=ignored');
+      assert.equal(list.body.entries[0].name, '', 'an app that does not collect names must not store one');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('capacity is reported as places remaining, and counts down', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      const before = await client.get('/api/v1/apps/cdots/count');
+      assert.equal(before.body.capacity, 100);
+      assert.equal(before.body.remaining, 100);
+
+      await client.post('/api/v1/apps/cdots/waitlist', { email: 'first@example.com' });
+      const after = await client.get('/api/v1/apps/cdots/count');
+      assert.equal(after.body.count, 1);
+      assert.equal(after.body.remaining, 99, 'one signup should consume one place');
+
+      const meta = await client.get('/api/v1/apps/cdots');
+      assert.equal(meta.body.app.collectName, false);
+      assert.equal(meta.body.app.remaining, 99);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('an app with no capacity reports remaining as null, never a negative', async () => {
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      const response = await client.get('/api/v1/apps/pages/count');
+      assert.equal(response.body.capacity, 0);
+      assert.equal(response.body.remaining, null);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('remaining floors at zero once capacity is exceeded', async () => {
+    const isolated = await startTestServer({ RL_SIGNUP_MAX: '500' });
+    try {
+      const adminClient = isolated.client();
+      await adminClient.unlockGate();
+      await adminClient.signInAdmin();
+      const apps = await adminClient.get('/api/v1/admin/apps');
+      const cdots = apps.body.apps.find((a) => a.slug === 'cdots');
+      assert.equal(cdots.capacity, 100);
+      await adminClient.patch(`/api/v1/admin/apps/${cdots.id}`, { capacity: 2 });
+
+      const client = isolated.client();
+      await client.unlockGate();
+      for (let i = 0; i < 3; i += 1) {
+        await client.post('/api/v1/apps/cdots/waitlist', { email: `over${i}@example.com` });
+      }
+      const response = await client.get('/api/v1/apps/cdots/count');
+      assert.equal(response.body.count, 3);
+      assert.equal(response.body.remaining, 0, 'must floor at zero rather than go negative');
+    } finally {
+      await isolated.stop();
+    }
   });
 });

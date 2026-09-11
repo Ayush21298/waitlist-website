@@ -83,13 +83,37 @@ export class Store {
     return this.#db.get('SELECT * FROM apps WHERE id = ?', [id]);
   }
 
-  async createApp({ slug, name, description = '', isActive = true, collectPhone = true, requirePhone = false }) {
+  async createApp({
+    slug,
+    name,
+    description = '',
+    isActive = true,
+    collectPhone = true,
+    requirePhone = false,
+    collectName = true,
+    requireName = true,
+    capacity = 0,
+  }) {
     const ts = nowIso();
     const id = await this.#insertReturningId(
       this.#db,
-      `INSERT INTO apps (slug, name, description, is_active, collect_phone, require_phone, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [slug, name, description, isActive ? 1 : 0, collectPhone ? 1 : 0, requirePhone ? 1 : 0, ts, ts],
+      `INSERT INTO apps
+         (slug, name, description, is_active, collect_phone, require_phone,
+          collect_name, require_name, capacity, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        slug,
+        name,
+        description,
+        isActive ? 1 : 0,
+        collectPhone ? 1 : 0,
+        requirePhone ? 1 : 0,
+        collectName ? 1 : 0,
+        requireName ? 1 : 0,
+        Math.max(0, Number(capacity) || 0),
+        ts,
+        ts,
+      ],
     );
     return this.getAppById(id);
   }
@@ -101,6 +125,9 @@ export class Store {
       isActive: 'is_active',
       collectPhone: 'collect_phone',
       requirePhone: 'require_phone',
+      collectName: 'collect_name',
+      requireName: 'require_name',
+      capacity: 'capacity',
     };
     const sets = [];
     const params = [];

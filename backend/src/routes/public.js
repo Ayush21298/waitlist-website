@@ -44,13 +44,25 @@ export function publicRoutes({ config, store, logger }) {
     }
   }
 
+  /**
+   * What a landing page is told about its own app.
+   *
+   * `capacity` and `remaining` exist because a limited beta advertises places
+   * left rather than signups so far. A capacity of 0 means no limit, and
+   * `remaining` is then null rather than a misleading negative number.
+   */
   function publicAppView(app, count) {
+    const capacity = Number(app.capacity) || 0;
     return {
       slug: app.slug,
       name: app.name,
       description: app.description,
+      collectName: Number(app.collect_name) === 1,
+      requireName: Number(app.require_name) === 1,
       collectPhone: Number(app.collect_phone) === 1,
       requirePhone: Number(app.require_phone) === 1,
+      capacity,
+      remaining: capacity > 0 ? Math.max(0, capacity - count) : null,
       count,
     };
   }
@@ -71,7 +83,13 @@ export function publicRoutes({ config, store, logger }) {
     async (req, res, next) => {
       try {
         const count = await store.countEntries(req.app_.id);
-        res.json({ ok: true, count });
+        const capacity = Number(req.app_.capacity) || 0;
+        res.json({
+          ok: true,
+          count,
+          capacity,
+          remaining: capacity > 0 ? Math.max(0, capacity - count) : null,
+        });
       } catch (err) {
         next(err);
       }
@@ -105,7 +123,15 @@ export function publicRoutes({ config, store, logger }) {
           return;
         }
 
-        const name = validateName(body.name, { maxLength: config.limits.maxNameLength });
+        // Whether a name is wanted at all, and whether it is mandatory, are
+        // properties of the app rather than of the platform.
+        const collectsName = Number(app.collect_name) === 1;
+        const name = collectsName
+          ? validateName(body.name, {
+              maxLength: config.limits.maxNameLength,
+              required: Number(app.require_name) === 1,
+            })
+          : '';
         const email = validateEmail(body.email, { maxLength: config.limits.maxEmailLength });
         const phone = validatePhone(body.phone, {
           required: Number(app.require_phone) === 1,
@@ -154,6 +180,7 @@ export function publicRoutes({ config, store, logger }) {
         });
 
         const total = await store.countEntries(app.id);
+        const capacity = Number(app.capacity) || 0;
 
         req.log.info('signup accepted', { app: app.slug, entryId: entry.id, position: entry.position });
         req.recordEvent({
@@ -164,7 +191,14 @@ export function publicRoutes({ config, store, logger }) {
           detail: { position: entry.position, hasPhone: Boolean(phone.value), source: entry.source },
         });
 
-        res.status(201).json({ ok: true, position: entry.position, total, duplicate: false });
+        res.status(201).json({
+          ok: true,
+          position: entry.position,
+          total,
+          capacity,
+          remaining: capacity > 0 ? Math.max(0, capacity - total) : null,
+          duplicate: false,
+        });
       } catch (err) {
         if (err instanceof DuplicateEntryError) {
           // Returning the original position is friendlier than an error and

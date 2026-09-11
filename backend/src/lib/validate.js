@@ -61,9 +61,14 @@ export function cleanMultiline(input) {
     .trim();
 }
 
-export function validateName(raw, { maxLength = 80 } = {}) {
+export function validateName(raw, { maxLength = 80, required = true } = {}) {
   const value = cleanString(raw);
-  if (!value) throw new ValidationError('name', 'name_required', 'Name is required.');
+  if (!value) {
+    if (required) throw new ValidationError('name', 'name_required', 'Name is required.');
+    // An app may collect an email address and nothing else; '' is then the
+    // honest stored value rather than a placeholder that looks like a name.
+    return '';
+  }
   if (value.length > maxLength) {
     throw new ValidationError('name', 'name_too_long', `Name must be at most ${maxLength} characters.`);
   }
