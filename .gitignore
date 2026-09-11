@@ -38,3 +38,4 @@ screenshots/
 # frontend/apps/<slug>/; tracking both would duplicate every asset, and the
 # uploads arrive with macOS __MACOSX and ._ resource-fork junk attached.
 misc/
+backups/

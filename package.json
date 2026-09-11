@@ -19,6 +19,8 @@
     "smoke": "node scripts/smoke.mjs",
     "loadtest": "node scripts/loadtest.mjs",
     "generate-secrets": "node scripts/generate-secrets.mjs",
+    "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
     "audit": "npm --prefix backend audit",
     "docker:build": "docker build -t r2p/waitlist:latest .",
     "docker:up": "docker compose up --build",
