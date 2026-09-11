@@ -19,10 +19,14 @@ Free tiers change often and several well-known ones have quietly disappeared.
 What follows was verified against the providers' own pricing and documentation
 pages; where something could not be confirmed, it says so.
 
-### Recommended: Render + Neon — free, no credit card, ~10 minutes
+### Recommended: Render + Neon — free, no credit card, ~15 minutes
 
 The only combination here that needs **no card anywhere**, and the fastest to
 stand up. A blueprint is committed as [`render.yaml`](render.yaml).
+
+**→ Full walkthrough: [docs/deploy-render-neon.md](docs/deploy-render-neon.md)**
+— every click, what the logs should say, how to verify it, and how to turn on
+backups. The summary below is the shape of it.
 
 1. Push this repository to GitHub.
 2. Create a free Postgres database at **[neon.com](https://neon.com/pricing)**.

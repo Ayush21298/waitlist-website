@@ -357,5 +357,9 @@ The long version, including what is *not* defended against, is in
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for hosting options, the checklist, and
-what to do about backups.
+**[docs/deploy-render-neon.md](docs/deploy-render-neon.md)** is the
+step-by-step walkthrough: a permanent HTTPS URL, free, no credit card, roughly
+15 minutes.
+
+[DEPLOYMENT.md](DEPLOYMENT.md) covers the wider picture — why that pairing,
+which hosts were ruled out and why, the pre-launch checklist, and backups.
