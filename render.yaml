@@ -13,7 +13,11 @@
 
 services:
   - type: web
-    name: r2p-waitlist
+    # Render derives the *.onrender.com hostname from this name, once, when
+    # the service is first created. Renaming an existing service changes only
+    # its dashboard label -- the URL it was given stays as it was. Changing
+    # the hostname therefore means creating a new service under a new name.
+    name: ayushpatel
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
