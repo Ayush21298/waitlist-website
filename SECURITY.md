@@ -30,6 +30,18 @@ platform health checker cannot log in, and a probe that requires a password
 is a probe that reports a healthy service as down. Neither reveals anything —
 no versions, no hostnames, no counts, no connection strings.
 
+**Web app manifests and their icons are also outside it**, for a similar
+reason. A browser fetches a manifest with credentials omitted, so behind a
+redirecting gate it receives the login page instead of JSON and reports the
+app as not installable — silently, with nothing on the page to explain it.
+The exemption is a pattern, not a directory: only a file named
+`manifest.webmanifest` or a PNG under an `icons/` directory matches, so it
+cannot widen by accident, and a crafted path cannot escape it (tested).
+
+What that discloses is an app name and a logo. What stays behind the gate is
+every page, the signup form, the service worker, all other assets, the whole
+API and the admin panel.
+
 ---
 
 ## Passwords and sessions
@@ -217,19 +229,23 @@ trustworthy.
 
 1. **`'unsafe-inline'` in the CSP.** Required by the current single-file
    landing page. The fix is per-block hashes or a nonce.
-2. **The site gate is a shared password.** Everyone invited holds the same
+2. **App names and icons are public**, by the deliberate trade above: a
+   manifest and its icons are served without a session so the apps can be
+   installed. Someone who guesses a URL learns that "Pages" and "C·Dots"
+   exist, and sees their icons. They learn nothing else and can do nothing.
+3. **The site gate is a shared password.** Everyone invited holds the same
    secret, and it cannot be revoked per person. It is a perimeter against
    casual discovery and link-sharing, not against a determined insider.
    Revoking it means changing it and telling everyone.
-3. **In-memory rate limiting is per instance.** Running more than one replica
+4. **In-memory rate limiting is per instance.** Running more than one replica
    multiplies the effective burst limit by the replica count. The lockout and
    the signup backstop are database-backed and unaffected.
-4. **No email verification.** Anyone can enter anyone's address. For a beta
+5. **No email verification.** Anyone can enter anyone's address. For a beta
    waitlist that is usually acceptable; if it is not, add a confirmation link.
-5. **No 2FA on the admin panel.** A single password is the only factor.
-6. **Data at rest is not encrypted by the application.** It relies on the
+6. **No 2FA on the admin panel.** A single password is the only factor.
+7. **Data at rest is not encrypted by the application.** It relies on the
    host's disk or database encryption.
-7. **No automated dependency scanning in CI.** `npm audit` currently reports
+8. **No automated dependency scanning in CI.** `npm audit` currently reports
    zero vulnerabilities across 118 packages, but that is a point-in-time
    check; run it on a schedule.
 

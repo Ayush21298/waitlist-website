@@ -413,30 +413,49 @@ try {
 
     const linked = await page.getAttribute('link[rel=manifest]', 'href');
     const manifestUrl = new URL(linked ?? '', page.url()).href;
-    const res = await page.request.get(manifestUrl);
-    const manifest = res.ok() ? await res.json() : {};
+
+    // Fetched with credentials omitted, which is how a browser fetches a
+    // manifest. Using a cookie-carrying request here hides the failure that
+    // actually matters: behind a login, an uncredentialed fetch is redirected
+    // to the login page, the browser gets HTML where it expected JSON, and
+    // reports the app as not installable with nothing on the page to say why.
+    const res = await page.evaluate(async (url) => {
+      const r = await fetch(url, { credentials: 'omit', redirect: 'follow' });
+      return { ok: r.ok, status: r.status, type: r.headers.get('content-type') ?? '', body: await r.text() };
+    }, manifestUrl);
+
+    let manifest = {};
+    try {
+      manifest = JSON.parse(res.body);
+    } catch {
+      manifest = {};
+    }
     const sizes = (manifest.icons ?? []).map((i) => i.sizes);
 
     check(
       `${label}: manifest declares what Chrome requires`,
-      res.ok()
+      res.ok
         && Boolean(manifest.name || manifest.short_name)
         && ['standalone', 'fullscreen', 'minimal-ui'].includes(manifest.display)
         && Boolean(manifest.start_url)
         && sizes.includes('192x192')
         && sizes.includes('512x512')
         && manifest.prefer_related_applications !== true,
-      `HTTP ${res.status()}, display=${manifest.display}, icons=${sizes.join(' ')}`,
+      `HTTP ${res.status}, display=${manifest.display}, icons=${sizes.join(' ')}`,
     );
 
     // A manifest that lists an icon which 404s makes the app uninstallable,
     // and nothing in the page says so.
-    let iconsOk = true;
+    let iconsOk = (manifest.icons ?? []).length > 0;
     for (const icon of manifest.icons ?? []) {
-      const iconRes = await page.request.get(new URL(icon.src, manifestUrl).href);
-      if (!iconRes.ok()) iconsOk = false;
+      // Uncredentialed too: the browser fetches these the same way.
+      const ok = await page.evaluate(async (url) => {
+        const r = await fetch(url, { credentials: 'omit', redirect: 'follow' });
+        return r.ok && (r.headers.get('content-type') ?? '').startsWith('image/');
+      }, new URL(icon.src, manifestUrl).href);
+      if (!ok) iconsOk = false;
     }
-    check(`${label}: every declared icon loads`, iconsOk);
+    check(`${label}: every declared icon loads without a session`, iconsOk);
   }
 
   // The CSP names manifest-src and worker-src explicitly; without them

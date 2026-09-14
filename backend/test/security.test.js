@@ -420,3 +420,60 @@ describe('base path', () => {
     await assert.rejects(() => startTestServer({ BASE_PATH: '/has spaces' }));
   });
 });
+
+describe('install assets and the gate', () => {
+  test('a manifest and its icons are reachable without a session', async () => {
+    // A browser fetches a manifest with credentials omitted. Behind a gate
+    // that redirects, it receives the login page instead of JSON and reports
+    // the app as not installable -- silently, with nothing on the page to
+    // explain it. These are branding only: a name and a logo.
+    const client = server.client();
+    for (const asset of [
+      '/manifest.webmanifest',
+      '/a/pages/manifest.webmanifest',
+      '/a/cdots/manifest.webmanifest',
+      '/icons/icon-192.png',
+      '/a/pages/icons/icon-512.png',
+      '/a/cdots/icons/icon-192.png',
+    ]) {
+      const response = await client.get(asset);
+      assert.equal(response.status, 200, `${asset} must be served without a session`);
+    }
+  });
+
+  test('the exemption covers branding and nothing else', async () => {
+    const client = server.client();
+    // Everything that carries data, or accepts it, stays behind the gate.
+    for (const [path, expected] of [
+      ['/', 302],
+      ['/a/pages/', 302],
+      ['/a/cdots/', 302],
+      ['/a/cdots/index.html', 302],
+      ['/a/cdots/sw.js', 302],
+      ['/a/cdots/assets/logo.svg', 302],
+      ['/admin', 302],
+    ]) {
+      const response = await client.get(path, { headers: { Accept: 'text/html' } });
+      assert.equal(response.status, expected, `${path} must stay gated`);
+    }
+
+    const api = await client.get('/api/v1/apps');
+    assert.equal(api.status, 401, 'the API must stay gated');
+  });
+
+  test('the exemption cannot be widened by a crafted path', async () => {
+    const client = server.client();
+    for (const attempt of [
+      '/a/pages/icons/../index.html',
+      '/a/pages/icons/../../../backend/src/config.js',
+      '/icons/../manifest.webmanifest/../../.env',
+      '/a/pages/manifest.webmanifest/../index.html',
+    ]) {
+      const response = await client.get(attempt, { headers: { Accept: 'text/html' } });
+      assert.notEqual(response.status, 200, `${attempt} must not be served`);
+      const body = String(response.body ?? '');
+      assert.ok(!body.includes('SESSION_SECRET'), 'must never serve the environment file');
+      assert.ok(!body.includes('베타 테스터'), 'must never serve a gated page');
+    }
+  });
+});

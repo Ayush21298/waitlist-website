@@ -99,6 +99,38 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
     sendPage(req, res, next, 'gate', 'index.html');
   });
 
+  /**
+   * Install assets, served ahead of the gate.
+   *
+   * A browser fetches a web app manifest with credentials omitted, so it
+   * arrives without the session cookie, gets redirected to the gate, receives
+   * HTML where it expected JSON, and reports the app as not installable --
+   * with nothing in the page to say why. The same is true of the icons the
+   * manifest names.
+   *
+   * These two things are branding and nothing else: an app name and a logo.
+   * The gate still stands in front of every page, the signup form, the whole
+   * API and the admin panel, which is what it exists to protect. Exempting a
+   * name and an icon is a deliberate, bounded trade for being installable.
+   *
+   * The allow-list is a pattern rather than a directory mount, so it cannot
+   * be widened by accident: only a file literally called
+   * `manifest.webmanifest`, or a PNG under an `icons/` directory, is matched.
+   */
+  const INSTALL_ASSET = /^(?:\/a\/[a-z0-9-]+)?\/(?:manifest\.webmanifest|icons\/[A-Za-z0-9._-]+\.png)$/;
+
+  site.get(INSTALL_ASSET, (req, res, next) => {
+    // `/a/<slug>/…` lives under frontend/apps/<slug>, everything else under
+    // frontend/home. resolveWithin does the containment check either way.
+    const underApps = req.path.startsWith('/a/');
+    const root = underApps ? path.join(frontend, 'apps') : path.join(frontend, 'home');
+    const relative = underApps ? req.path.slice('/a'.length) : req.path;
+
+    const target = resolveWithin(root, relative);
+    if (!target) return next();
+    sendAsset(req, res, target.file, target.stat, { cache: assetCache, maxAgeSeconds, logger }).catch(next);
+  });
+
   // ---- everything below requires a gate session ----
   site.use(requireGate(config));
 
