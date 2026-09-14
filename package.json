@@ -20,6 +20,7 @@
     "loadtest": "node scripts/loadtest.mjs",
     "generate-secrets": "node scripts/generate-secrets.mjs",
     "icons": "node scripts/make-icons.mjs",
+    "seed:test": "node scripts/seed-test-data.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "audit": "npm --prefix backend audit",
