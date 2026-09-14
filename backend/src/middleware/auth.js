@@ -56,6 +56,9 @@ export function cookieParser() {
 }
 
 function serialiseCookie(name, value, { maxAgeMs, secure, sameSite, path = '/' }) {
+  // Path scopes the cookie. Under a prefix it must be the prefix, so the
+  // browser sends the session for our pages and -- just as importantly --
+  // does not leak it to anything else sharing the origin.
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     `Path=${path}`,
@@ -195,6 +198,7 @@ export class AuthService {
         maxAgeMs: ttl,
         secure: this.#config.isProduction || req.secure,
         sameSite: this.#sameSite(kind),
+        path: `${this.#config.basePath}/`,
       }),
     );
 
@@ -268,6 +272,8 @@ export class AuthService {
         maxAgeMs: 0,
         secure: this.#config.isProduction || req.secure,
         sameSite: this.#sameSite(kind),
+        // Must match the Path the cookie was set with, or the browser keeps it.
+        path: `${this.#config.basePath}/`,
       }),
     );
   }
@@ -312,13 +318,15 @@ export function requireGate(config) {
       return;
     }
     // Preserve where they were going so the gate can return them there.
-    const target = encodeURIComponent(req.originalUrl || '/');
-    res.redirect(302, `/gate?next=${target}`);
+    // originalUrl already carries the mount prefix, which is what the browser
+    // needs to follow.
+    const target = encodeURIComponent(req.originalUrl || `${config.basePath}/`);
+    res.redirect(302, `${config.basePath}/gate?next=${target}`);
   };
 }
 
 /** Requires a valid admin session (and, by ordering, a gate session). */
-export function requireAdmin(auth) {
+export function requireAdmin(auth, config) {
   return async function requireAdminMiddleware(req, res, next) {
     try {
       const session = await auth.resolveSession('admin', req);
@@ -331,7 +339,7 @@ export function requireAdmin(auth) {
           });
           return;
         }
-        res.redirect(302, '/admin/login');
+        res.redirect(302, `${config?.basePath ?? ''}/admin/login`);
         return;
       }
       req.adminSession = session;

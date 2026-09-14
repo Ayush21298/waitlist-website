@@ -25,6 +25,8 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 
 const BASE = (args.get('base') ?? 'http://127.0.0.1:8099').replace(/\/$/, '');
+// The site may be mounted under a sub-path. Its root is that path, not '/'.
+const BASE_PATH = new URL(BASE).pathname.replace(/\/$/, '');
 const GATE_PASSWORD = args.get('gate-password') ?? process.env.SITE_GATE_PASSWORD;
 const ADMIN_PASSWORD = args.get('admin-password') ?? process.env.ADMIN_PASSWORD;
 const SHOTS = args.get('shots') ?? null;
@@ -121,7 +123,11 @@ try {
 
   // A deep link is honoured above; arriving at the root lands on the index.
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-  check('the root is reachable once unlocked', new URL(page.url()).pathname === '/');
+  check(
+    'the site root is reachable once unlocked',
+    new URL(page.url()).pathname.replace(/\/$/, '') === BASE_PATH,
+    new URL(page.url()).pathname,
+  );
 
   /* ---------------- the front door ---------------- */
   console.log('\nApp index');
@@ -135,14 +141,14 @@ try {
   const indexCards = await page.locator('.app').count();
   check('the root lists the apps rather than jumping into one', indexCards >= 2, `${indexCards} cards`);
   check('each card links to its own app',
-    (await page.locator('.app[href="/a/pages/"]').count()) === 1
-    && (await page.locator('.app[href="/a/cdots/"]').count()) === 1);
+    (await page.locator(`.app[href="${BASE_PATH}/a/pages/"]`).count()) === 1
+    && (await page.locator(`.app[href="${BASE_PATH}/a/cdots/"]`).count()) === 1);
   check('a card shows a live figure, not a placeholder',
     /\d/.test(await page.locator('.app .stat .n').first().innerText()));
   await shot(page, '00-home');
 
   // Both cards must actually go somewhere.
-  await page.click('.app[href="/a/cdots/"]');
+  await page.click(`.app[href="${BASE_PATH}/a/cdots/"]`);
   await page.waitForURL('**/a/cdots/**', { timeout: 15000 });
   check('clicking the C-Dots card opens C-Dots', page.url().includes('/a/cdots/'));
 
@@ -152,7 +158,7 @@ try {
     null,
     { timeout: 15000 },
   );
-  await page.click('.app[href="/a/pages/"]');
+  await page.click(`.app[href="${BASE_PATH}/a/pages/"]`);
   await page.waitForURL('**/a/pages/**', { timeout: 15000 });
   check('clicking the Pages card opens Pages', page.url().includes('/a/pages/'));
 
@@ -470,8 +476,11 @@ try {
     { timeout: 15000 },
   );
 
+  // The page exposes apiUrl(), which is exactly the prefix-aware helper the
+  // real pages use; hardcoding an absolute path here would miss the mount and
+  // fetch the 404 page instead.
   const taken = await closer.evaluate(async () => {
-    const r = await fetch('/api/v1/apps/pages/count', { credentials: 'same-origin' });
+    const r = await fetch(window.apiUrl('/api/v1/apps/pages/count'), { credentials: 'same-origin' });
     return (await r.json()).count;
   });
 

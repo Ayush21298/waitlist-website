@@ -148,7 +148,7 @@ export function adminRoutes({ config, store, auth, logger }) {
 
   // Everything below requires an authenticated administrator.
   router.use(rateLimit({ limiter: apiLimiter, name: 'admin-api' }));
-  router.use(requireAdmin(auth));
+  router.use(requireAdmin(auth, config));
   router.use(requireCsrf());
 
   router.get('/session', (req, res) => {

@@ -234,6 +234,21 @@ The ones that matter:
 | `IP_HASH_SECRET` | Keys the IP pseudonyms in the logs. Required in production. |
 | `DATABASE_URL` | Empty → SQLite on disk. Set → Postgres. |
 | `TRUST_PROXY_HOPS` | Number of proxies in front. Getting this wrong breaks rate limiting — see [DEPLOYMENT.md](DEPLOYMENT.md). |
+| `BASE_PATH` | Empty → the site owns its origin. Set to e.g. `/r2p/waitlist` to serve everything under a sub-path. |
+
+### Serving under a sub-path
+
+```bash
+BASE_PATH=/r2p/waitlist npm start
+```
+
+Everything moves together — pages, API, admin panel, and the session cookie's
+`Path`, which is scoped to the prefix so it is neither lost nor leaked to
+whatever else shares the origin. Anything outside the prefix returns 404.
+
+The pages work out the prefix from their own URL rather than having it baked
+in, so the same files serve correctly at any mount point with no build step.
+The full test suite runs against both `/` and `/r2p/waitlist`.
 
 The server refuses to start on a bad configuration rather than starting up
 insecure: a missing secret, a secret that is too short, or the two passwords

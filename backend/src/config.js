@@ -96,6 +96,36 @@ export function loadDotEnv(file = path.join(ROOT, '.env')) {
   return true;
 }
 
+/**
+ * Turns a configured base path into a canonical form.
+ *
+ * Accepts what a person would plausibly type -- 'r2p/waitlist',
+ * '/r2p/waitlist', '/r2p/waitlist/' -- and returns '/r2p/waitlist'. An empty
+ * or '/' value returns '', meaning "no prefix", so that string concatenation
+ * with it is always safe.
+ */
+export function normaliseBasePath(raw) {
+  if (!raw) return '';
+  let value = String(raw).trim();
+  if (!value || value === '/') return '';
+  if (!value.startsWith('/')) value = `/${value}`;
+  value = value.replace(/\/+$/, '');
+  if (!/^(\/[A-Za-z0-9._~-]+)+$/.test(value)) {
+    throw new ConfigError(
+      `BASE_PATH must be a simple path such as /r2p/waitlist, got "${raw}".`,
+    );
+  }
+  // '.' and '-' are legal in a path segment, so the pattern above happily
+  // accepts '..' -- and a prefix containing a traversal segment would mean
+  // the mount point and the URLs built from it disagree about what the site's
+  // root is. Rejected outright rather than normalised, because a BASE_PATH
+  // with '..' in it is a mistake, not an intent.
+  if (value.split('/').some((segment) => segment === '.' || segment === '..')) {
+    throw new ConfigError(`BASE_PATH must not contain "." or ".." segments, got "${raw}".`);
+  }
+  return value;
+}
+
 const MIN_SECRET_BYTES = 32;
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -257,6 +287,14 @@ export function buildConfig(env = process.env) {
       // Where `/` sends visitors. Must match a slug in the apps table.
       defaultSlug: str('DEFAULT_APP_SLUG', 'pages'),
     },
+
+    // Sub-path the whole site is served under, e.g. '/r2p/waitlist'. Empty
+    // means the site owns its origin, which is the usual case.
+    //
+    // Normalised to either '' or a leading-slash path with no trailing slash,
+    // so the rest of the code can always write `${basePath}/gate` without
+    // worrying about producing '//gate' or '/r2p/waitlist//gate'.
+    basePath: normaliseBasePath(str('BASE_PATH', '')),
 
     limits: {
       maxNameLength: int('MAX_NAME_LENGTH', 80),

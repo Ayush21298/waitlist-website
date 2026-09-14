@@ -395,6 +395,18 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
+  /* 이 사이트는 하위 경로(예: /r2p/waitlist)에 배치될 수 있습니다.
+     접두사를 서버가 끼워넣는 대신 페이지가 자기 주소에서 직접 계산합니다.
+     그래야 HTML 이 정적 파일 그대로 남고, 빌드 단계도 필요 없습니다. */
+  window.BASE_PATH = (function(){
+    var marker = '/admin';
+    var p = window.location.pathname;
+    var i = p.indexOf(marker);
+    return i > 0 ? p.slice(0, i) : '';
+  })();
+  window.apiUrl = function(path){ return window.BASE_PATH + path; };
+</script>
+<script>
 (function(){
   'use strict';
 
@@ -480,7 +492,7 @@
     // anything else, so a cross-site form post cannot act as the admin.
     if (options.method && options.method !== 'GET' && state.csrf) headers['X-CSRF-Token'] = state.csrf;
 
-    return fetch('/api/v1/admin' + path, {
+    return fetch(window.apiUrl('/api/v1/admin' + path), {
       method: options.method || 'GET',
       headers: headers,
       credentials: 'same-origin',
@@ -528,7 +540,7 @@
     button.disabled = true;
     button.textContent = 'Signing in…';
 
-    fetch('/api/v1/admin/login', {
+    fetch(window.apiUrl('/api/v1/admin/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -1144,7 +1156,16 @@
       return el('tr', null, [
         el('td', { class: 'strong', text: app.name }),
         el('td', null, [el('span', { class: 'mono', text: app.slug })]),
-        el('td', null, [el('a', { class: 'mono', href: '/a/' + app.slug + '/', target: '_blank', rel: 'noopener', text: '/a/' + app.slug + '/' })]),
+        el('td', null, [el('a', {
+          class: 'mono',
+          href: window.apiUrl('/a/' + app.slug + '/'),
+          target: '_blank',
+          rel: 'noopener',
+          // The displayed text keeps the site-relative form: it is what you
+          // would append to the deployment's own address, and the full prefix
+          // would only make the column wider without telling you more.
+          text: '/a/' + app.slug + '/',
+        })]),
         el('td', null, [el('span', { class: 'badge ' + (app.isActive ? 'joined' : 'removed') }, [
           el('span', { class: 'dot', 'aria-hidden': 'true' }),
           app.isActive ? 'Active' : 'Inactive'
@@ -1219,13 +1240,13 @@
     var params = entryQueryString();
     params.set('format', format);
     if ($('export-meta').checked) params.set('include', 'meta');
-    return '/api/v1/admin/entries/export?' + params.toString();
+    return window.apiUrl('/api/v1/admin/entries/export?' + params.toString());
   });
 
   wireExportMenu('export-events-btn', 'export-events-menu', function(format){
     var params = eventQueryString();
     params.set('format', format);
-    return '/api/v1/admin/events/export?' + params.toString();
+    return window.apiUrl('/api/v1/admin/events/export?' + params.toString());
   });
 
   /* =====================================================================

@@ -302,3 +302,121 @@ describe('transport security', () => {
     assert.equal(response.headers.get('strict-transport-security'), null);
   });
 });
+
+describe('base path', () => {
+  const BASE = '/r2p/waitlist';
+
+  test('the whole site moves under the prefix, and nothing is left at the root', async () => {
+    const isolated = await startTestServer({ BASE_PATH: BASE });
+    try {
+      const client = isolated.client();
+
+      // Outside the prefix belongs to whatever else shares the origin.
+      for (const outside of ['/', '/admin', '/healthz', '/api/v1/apps']) {
+        const response = await client.get(outside, { headers: { Accept: 'text/html' } });
+        assert.equal(response.status, 404, `${outside} should not be served`);
+      }
+
+      // Health probes stay outside the gate but inside the prefix.
+      const health = await client.get(`${BASE}/healthz`);
+      assert.equal(health.status, 200);
+
+      const unlocked = await client.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+      assert.equal(unlocked.status, 200);
+
+      const count = await client.get(`${BASE}/api/v1/apps/pages/count`);
+      assert.equal(count.status, 200);
+      assert.equal(typeof count.body.count, 'number');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('the session cookie is scoped to the prefix', async () => {
+    const isolated = await startTestServer({ BASE_PATH: BASE });
+    try {
+      const client = isolated.client();
+      const response = await client.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+      const [cookie] = response.headers.getSetCookie();
+      // Scoping matters twice over: the browser must send it for our pages,
+      // and must not leak it to anything else sharing the origin.
+      assert.match(cookie, new RegExp(`Path=${BASE}/`), cookie);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('the gate redirect keeps the prefix, and refuses to leave it', async () => {
+    const isolated = await startTestServer({ BASE_PATH: BASE });
+    try {
+      const client = isolated.client();
+
+      const blocked = await client.get(`${BASE}/a/pages/`, { headers: { Accept: 'text/html' } });
+      assert.equal(blocked.status, 302);
+      assert.equal(blocked.location, `${BASE}/gate?next=${encodeURIComponent(`${BASE}/a/pages/`)}`);
+
+      await client.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+
+      // A destination outside the prefix is somebody else's site.
+      const escaping = await client.get(`${BASE}/gate?next=%2Fsomewhere-else`, {
+        headers: { Accept: 'text/html' },
+      });
+      assert.equal(escaping.status, 302);
+      assert.equal(escaping.location, `${BASE}/`, 'must collapse to the site root, not the origin root');
+
+      const offSite = await client.get(`${BASE}/gate?next=https%3A%2F%2Fevil.example`, {
+        headers: { Accept: 'text/html' },
+      });
+      assert.equal(offSite.location, `${BASE}/`);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('the prefix without a trailing slash redirects once, not forever', async () => {
+    // Express matches a path and its trailing-slash form identically, so a
+    // naive redirect sends /r2p/waitlist/ to itself. That is an infinite loop
+    // for anyone who typed the URL correctly.
+    const isolated = await startTestServer({ BASE_PATH: BASE });
+    try {
+      const client = isolated.client();
+      await client.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+
+      const bare = await client.get(BASE, { headers: { Accept: 'text/html' } });
+      assert.equal(bare.status, 301);
+      assert.equal(bare.location, `${BASE}/`);
+
+      const withSlash = await client.get(`${BASE}/`, { headers: { Accept: 'text/html' } });
+      assert.equal(withSlash.status, 200, 'the trailing-slash form must be served, not redirected');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('a signup works end to end under the prefix', async () => {
+    const isolated = await startTestServer({ BASE_PATH: BASE });
+    try {
+      const client = isolated.client();
+      await client.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+
+      const signup = await client.post(`${BASE}/api/v1/apps/cdots/waitlist`, { email: 'prefixed@example.com' });
+      assert.equal(signup.status, 201);
+      assert.equal(signup.body.position, 1);
+
+      const admin = isolated.client();
+      await admin.post(`${BASE}/api/v1/gate/login`, { password: GATE_PASSWORD });
+      const login = await admin.post(`${BASE}/api/v1/admin/login`, { password: ADMIN_PASSWORD });
+      admin.csrf = login.body.csrfToken;
+
+      const list = await admin.get(`${BASE}/api/v1/admin/entries?search=prefixed`);
+      assert.equal(list.body.total, 1);
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('a malformed BASE_PATH is refused at boot rather than half-applied', async () => {
+    await assert.rejects(() => startTestServer({ BASE_PATH: '/r2p/../etc' }));
+    await assert.rejects(() => startTestServer({ BASE_PATH: '/has spaces' }));
+  });
+});

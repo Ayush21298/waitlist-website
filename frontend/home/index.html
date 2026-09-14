@@ -158,6 +158,12 @@
 </footer>
 
 <script>
+  /* 이 사이트는 하위 경로(예: /r2p/waitlist)에 배치될 수 있습니다.
+     접두사를 서버가 끼워넣는 대신 페이지가 자기 주소에서 계산합니다. */
+  window.BASE_PATH = window.location.pathname.replace(/\/+$/, '');
+  window.apiUrl = function(path){ return window.BASE_PATH + path; };
+</script>
+<script>
 (function(){
   'use strict';
 
@@ -214,7 +220,7 @@
 
     var node = el('a', {
       class: 'app',
-      href: '/a/' + app.slug + '/',
+      href: window.apiUrl('/a/' + app.slug + '/'),
       'aria-label': app.name + (full ? ' — 모집 마감' : ' — 대기 리스트 등록')
     });
 
@@ -279,7 +285,7 @@
 
   skeletons(2);
 
-  fetch('/api/v1/apps', { credentials: 'same-origin', cache: 'no-store' })
+  fetch(window.apiUrl('/api/v1/apps'), { credentials: 'same-origin', cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok) throw new Error('list');
@@ -292,9 +298,9 @@
     });
 
   document.getElementById('leave').addEventListener('click', function(){
-    fetch('/api/v1/gate/logout', { method: 'POST', credentials: 'same-origin' })
+    fetch(window.apiUrl('/api/v1/gate/logout'), { method: 'POST', credentials: 'same-origin' })
       .catch(function(){})
-      .then(function(){ window.location.href = '/gate'; });
+      .then(function(){ window.location.href = window.apiUrl('/gate'); });
   });
 })();
 </script>

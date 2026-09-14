@@ -330,6 +330,18 @@
   </main>
 
 <script>
+  /* 이 사이트는 하위 경로(예: /r2p/waitlist)에 배치될 수 있습니다.
+     접두사를 서버가 끼워넣는 대신 페이지가 자기 주소에서 직접 계산합니다.
+     그래야 HTML 이 정적 파일 그대로 남고, 빌드 단계도 필요 없습니다. */
+  window.BASE_PATH = (function(){
+    var marker = '/a/';
+    var p = window.location.pathname;
+    var i = p.indexOf(marker);
+    return i > 0 ? p.slice(0, i) : '';
+  })();
+  window.apiUrl = function(path){ return window.BASE_PATH + path; };
+</script>
+<script>
   /* Keep --s in sync for browsers without CSS length-division support */
   (function(){
     function fit(){
@@ -363,7 +375,7 @@
      내려주며, 관리자 페이지에서 바꾸면 여기에도 바로 반영됩니다.
      ========================================================= */
   var APP_SLUG = 'cdots';
-  var API = '/api/v1/apps/' + APP_SLUG;
+  var API = window.apiUrl('/api/v1/apps/' + APP_SLUG);
   var TOTAL = 100;              // 서버가 정원을 알려주기 전까지 쓰는 값
 
   var form = document.getElementById('wl');

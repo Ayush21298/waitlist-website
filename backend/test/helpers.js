@@ -67,7 +67,25 @@ export async function startTestServer(overrides = {}) {
     ...overrides,
   };
 
-  const config = buildConfig(env);
+  // Validate before anything is created. buildConfig throws on a bad
+  // configuration, and if that happens after the temp directory and the
+  // Postgres schema exist, the test that asserts the rejection leaks both --
+  // which is what left the suite hanging rather than failing.
+  let config;
+  try {
+    config = buildConfig(env);
+  } catch (err) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (schema) {
+      const { default: pg } = await import('pg');
+      const client = new pg.Client({ connectionString: postgresUrl });
+      await client.connect();
+      await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+      await client.end();
+    }
+    throw err;
+  }
+
   const logger = new Logger({ level: 'error', sinks: [] });
   const { adapter, store } = await createStore(config, logger);
   await store.ensureApps(SEED_APPS);

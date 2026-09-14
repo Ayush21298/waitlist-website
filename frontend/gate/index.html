@@ -103,6 +103,18 @@
 </main>
 
 <script>
+  /* 이 사이트는 하위 경로(예: /r2p/waitlist)에 배치될 수 있습니다.
+     접두사를 서버가 끼워넣는 대신 페이지가 자기 주소에서 직접 계산합니다.
+     그래야 HTML 이 정적 파일 그대로 남고, 빌드 단계도 필요 없습니다. */
+  window.BASE_PATH = (function(){
+    var marker = '/gate';
+    var p = window.location.pathname;
+    var i = p.indexOf(marker);
+    return i > 0 ? p.slice(0, i) : '';
+  })();
+  window.apiUrl = function(path){ return window.BASE_PATH + path; };
+</script>
+<script>
 (function(){
   'use strict';
 
@@ -115,11 +127,16 @@
   /* Where to go after unlocking. Read from our own URL, but never trusted:
      the server re-validates it, and anything not a local path becomes '/'. */
   function nextPath(){
+    var home = window.BASE_PATH + '/';
     try {
-      var raw = new URL(window.location.href).searchParams.get('next') || '/';
-      if (raw.charAt(0) !== '/' || raw.charAt(1) === '/') return '/';
+      var raw = new URL(window.location.href).searchParams.get('next') || home;
+      /* 로컬 경로만 허용합니다. 서버도 같은 검사를 하지만, 여기서 막으면
+         브라우저가 외부 주소로 한 번도 향하지 않습니다. */
+      if (raw.charAt(0) !== '/' || raw.charAt(1) === '/') return home;
+      /* 하위 경로에 배치된 경우, 접두사 밖은 우리 사이트가 아닙니다. */
+      if (window.BASE_PATH && raw.indexOf(window.BASE_PATH + '/') !== 0) return home;
       return raw;
-    } catch (e) { return '/'; }
+    } catch (e) { return home; }
   }
 
   peek.addEventListener('click', function(){
@@ -152,7 +169,7 @@
     button.disabled = true;
     button.textContent = '확인 중…';
 
-    fetch('/api/v1/gate/login', {
+    fetch(window.apiUrl('/api/v1/gate/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: password }),
