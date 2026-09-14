@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pages">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>Pages — 베타 테스터 대기 신청</title>
 <meta name="description" content="매일 저녁, 하루가 한 페이지의 이야기로 도착하는 Pages. 베타 테스터 대기 리스트에 이름을 올려두세요.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -142,6 +150,9 @@ section{padding:88px 0}
 .dn-done{margin-top:22px;width:100%;height:52px;border:0;border-radius:10px;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:-.04em;
   display:flex;align-items:center;justify-content:center;gap:8px}
 .dn-done svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.dn-done{background:var(--bg2);color:var(--ink);cursor:pointer;box-shadow:inset 0 0 0 1px var(--line2);transition:background .18s ease}
+.dn-done:hover{background:var(--line)}
+.dn-done:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .dn-done[disabled]{background:var(--bg2);color:var(--sub);cursor:default;box-shadow:inset 0 0 0 1px var(--line)}
 
 /* ================= 포맷 갤러리 (스킨 카드) ================= */
@@ -530,7 +541,7 @@ footer a{color:var(--sub);text-decoration:none}
           <div><dt>이름</dt><dd id="done-name"></dd></div>
           <div><dt>이메일</dt><dd id="done-email"></dd></div>
         </dl>
-        <button type="button" class="dn-done" id="finish" disabled><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg>등록 완료</button>
+        <button type="button" class="dn-done" id="finish"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>다른 사람도 등록하기</button>
       </div>
     </div>
   </div>
@@ -880,6 +891,29 @@ footer a{color:var(--sub);text-decoration:none}
     showCount(Math.max(position, (current || 0)), false);
     $('#join').scrollIntoView({block:'center', behavior: reduce ? 'auto' : 'smooth'});
   }
+  /* 등록을 마친 뒤 다시 빈 양식으로 되돌립니다.
+     새로고침을 쓰지 않는 이유: PWA 를 전체화면으로 설치하면 주소창이 없어
+     새로고침할 방법이 마땅치 않고, 페이지를 다시 받을 이유도 없습니다. */
+  function resetForm(){
+    clearInterval(confettiTimer);
+    var card = $('#join');
+    card.dataset.state = 'form';
+    card.style.minHeight = '';
+
+    $('#name').value = '';
+    $('#email').value = '';
+    ['#f-name', '#f-email'].forEach(function(sel){ $(sel).classList.remove('bad'); });
+    ['#name', '#email'].forEach(function(sel){ $(sel).removeAttribute('aria-invalid'); });
+    ferr.classList.remove('show');
+
+    /* 서버에서 최신 인원수를 다시 받아옵니다. 그 사이 다른 사람이 등록했을
+       수도 있고, 관리자가 정원을 바꿨을 수도 있습니다. */
+    loadCount();
+    $('#name').focus();
+  }
+
+  $('#finish').addEventListener('click', resetForm);
+
   form.addEventListener('submit', function(e){
     e.preventDefault(); ferr.classList.remove('show');
     if (!validate()) return;

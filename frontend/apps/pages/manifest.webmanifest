@@ -1,0 +1,17 @@
+{
+  "name": "Pages 베타 테스터 대기 신청",
+  "short_name": "Pages",
+  "description": "매일 저녁, 하루가 한 페이지의 이야기로 도착해요.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F9FAFB",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

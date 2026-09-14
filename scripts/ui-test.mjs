@@ -404,6 +404,90 @@ try {
 
   await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle' });
 
+  /* ---------------- installable as an app ---------------- */
+  // People asked to run this full-screen on Android tablets, which means the
+  // pages have to satisfy Chrome's installability criteria.
+  console.log('\nInstallable (PWA)');
+  for (const [label, appPath] of [['index', '/'], ['Pages', '/a/pages/'], ['C-Dots', '/a/cdots/']]) {
+    await page.goto(`${BASE}${appPath}`, { waitUntil: 'networkidle' });
+
+    const linked = await page.getAttribute('link[rel=manifest]', 'href');
+    const manifestUrl = new URL(linked ?? '', page.url()).href;
+    const res = await page.request.get(manifestUrl);
+    const manifest = res.ok() ? await res.json() : {};
+    const sizes = (manifest.icons ?? []).map((i) => i.sizes);
+
+    check(
+      `${label}: manifest declares what Chrome requires`,
+      res.ok()
+        && Boolean(manifest.name || manifest.short_name)
+        && ['standalone', 'fullscreen', 'minimal-ui'].includes(manifest.display)
+        && Boolean(manifest.start_url)
+        && sizes.includes('192x192')
+        && sizes.includes('512x512')
+        && manifest.prefer_related_applications !== true,
+      `HTTP ${res.status()}, display=${manifest.display}, icons=${sizes.join(' ')}`,
+    );
+
+    // A manifest that lists an icon which 404s makes the app uninstallable,
+    // and nothing in the page says so.
+    let iconsOk = true;
+    for (const icon of manifest.icons ?? []) {
+      const iconRes = await page.request.get(new URL(icon.src, manifestUrl).href);
+      if (!iconRes.ok()) iconsOk = false;
+    }
+    check(`${label}: every declared icon loads`, iconsOk);
+  }
+
+  // The CSP names manifest-src and worker-src explicitly; without them
+  // default-src 'none' blocks both, silently.
+  const csp = await page.evaluate(async () => {
+    const r = await fetch(window.apiUrl('/healthz'));
+    return r.headers.get('content-security-policy') ?? '';
+  });
+  check('the CSP permits a manifest and a worker',
+    /manifest-src 'self'/.test(csp) && /worker-src 'self'/.test(csp));
+
+  await page.goto(`${BASE}/a/cdots/`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  const worker = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+    return reg ? reg.scope : null;
+  });
+  check('C-Dots registers a service worker, scoped to itself',
+    Boolean(worker) && worker.endsWith('/a/cdots/'), worker ?? 'not registered');
+
+  /* ---------------- registering a second person ---------------- */
+  // Installed full-screen there is no address bar, so "just refresh" is not
+  // an answer: the page has to be able to return to a blank form by itself.
+  console.log('\nA second signup without reloading');
+  await page.goto(`${BASE}/a/pages/`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#count');
+    return el && /^[\d,]+$/.test(el.textContent.trim());
+  }, { timeout: 15000 });
+
+  const firstEmail = `reset-a-${stamp}@example.com`;
+  await page.fill('#name', `초기화 A ${stamp}`);
+  await page.fill('#email', firstEmail);
+  await page.click('#btn');
+  await page.waitForSelector('#join[data-state="done"]', { timeout: 15000 });
+
+  const urlBeforeReset = page.url();
+  await page.click('#finish');
+  await page.waitForSelector('#join[data-state="form"]', { timeout: 10000 });
+  check('the confirmation can return to the form', true);
+  check('without a page reload', page.url() === urlBeforeReset);
+  check('with the fields cleared',
+    (await page.inputValue('#name')) === '' && (await page.inputValue('#email')) === '');
+
+  await page.fill('#name', `초기화 B ${stamp}`);
+  await page.fill('#email', `reset-b-${stamp}@example.com`);
+  await page.click('#btn');
+  await page.waitForSelector('#join[data-state="done"]', { timeout: 15000 });
+  check('a second person can register in the same session',
+    /^[\d,]+$/.test((await page.locator('#myno').innerText()).trim()));
+
   /* ---------------- page hygiene ---------------- */
   console.log('\nPage hygiene');
   check('no uncaught JavaScript exceptions', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));

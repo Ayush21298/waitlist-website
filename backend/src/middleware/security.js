@@ -14,7 +14,9 @@
  * stylesheet from jsDelivr, so 'unsafe-inline' is required for style-src and
  * script-src. Everything else is closed:
  *
- *   - default-src 'none' means anything not named below is refused.
+ *   - default-src 'none' means anything not named below is refused. That is
+ *     why manifest-src and worker-src are named explicitly: a PWA needs both
+ *     and neither has its own fallback.
  *   - frame-ancestors 'none' blocks clickjacking, including of the admin panel.
  *   - form-action 'self' stops an injected form from posting the waitlist
  *     elsewhere.
@@ -29,6 +31,12 @@ function buildCsp() {
     "font-src 'self' data: https://cdn.jsdelivr.net",
     "img-src 'self' data:",
     "connect-src 'self'",
+    // Both of these fall back to default-src, which is 'none'. Without them
+    // the browser refuses to fetch the web app manifest and refuses to
+    // register the service worker -- and it does so quietly, so the page
+    // simply never becomes installable with no obvious cause.
+    "manifest-src 'self'",
+    "worker-src 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "base-uri 'none'",

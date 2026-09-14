@@ -138,6 +138,13 @@ export function createApp({ config, store, auth, logger, startedAt = Date.now() 
     sendPage(req, res, next, 'home', 'index.html');
   });
 
+  // The index's own manifest and icons. Mounted at the root but after the
+  // route above, so '/' still serves the page rather than a directory
+  // listing, and with no index file so this can never shadow a real route.
+  site.use(
+    compressedStatic({ root: path.join(frontend, 'home'), maxAgeSeconds, cache: assetCache, logger }),
+  );
+
   site.use(notFound());
   site.use(errorHandler(logger));
 

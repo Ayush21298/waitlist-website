@@ -256,6 +256,27 @@ being identical are all fatal at boot.
 
 ---
 
+## Installing it as an app
+
+Each landing page and the index are installable, so a tester on Android can
+add one to the home screen and run it full-screen with no browser chrome.
+Chrome offers this from its menu (*Add to Home screen*) once the page has been
+open briefly; iOS uses *Share → Add to Home Screen*.
+
+Each app installs separately, with its own name and icon — Pages, C·Dots and
+the index are three entries, not one.
+
+Two things worth knowing:
+
+- **The site password still applies.** An installed app opens to the gate if
+  the session has expired, exactly as the browser does.
+- **There is no address bar when installed**, so the pages never rely on one.
+  After registering someone, the confirmation offers *다른 사람도 등록하기* to
+  return to a blank form, and the admin panel has its own Refresh button.
+
+Icons are generated, not hand-drawn — `npm run icons` rewrites them from the
+shape definitions in `scripts/make-icons.mjs`.
+
 ## Showing it to someone
 
 To open the site on your phone, or hand it to a colleague for ten minutes:

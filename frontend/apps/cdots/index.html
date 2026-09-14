@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="C·Dots">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>C·Dots — 베타 테스터 등록</title>
 <meta name="description" content="신뢰하는 사람들에게 물어보세요. 지금 등록하면 토큰 무제한 이용.">
 
@@ -579,6 +587,18 @@
         setMsg('잠시 후 다시 시도해주세요');
       });
   });
+</script>
+<script>
+  /* 서비스 워커는 글꼴·이미지 같은 정적 자원만 캐시합니다.
+     HTML 과 API 응답은 절대 캐시하지 않습니다 — 이 사이트는 비밀번호
+     뒤에 있고, 캐시된 페이지는 세션이 끝난 뒤에도 남기 때문입니다. */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {
+        /* 설치에 실패해도 페이지는 그대로 동작합니다. */
+      });
+    });
+  }
 </script>
 </body>
 </html>

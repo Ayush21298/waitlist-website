@@ -1,0 +1,17 @@
+{
+  "name": "R2P Openlab 베타 테스터 모집",
+  "short_name": "R2P Openlab",
+  "description": "R2P Openlab 에서 준비 중인 앱들의 베타 테스터를 모집합니다.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F9FAFB",
+  "theme_color": "#F9FAFB",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

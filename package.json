@@ -19,6 +19,7 @@
     "smoke": "node scripts/smoke.mjs",
     "loadtest": "node scripts/loadtest.mjs",
     "generate-secrets": "node scripts/generate-secrets.mjs",
+    "icons": "node scripts/make-icons.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "audit": "npm --prefix backend audit",
