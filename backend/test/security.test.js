@@ -477,3 +477,101 @@ describe('install assets and the gate', () => {
     }
   });
 });
+
+describe('csrf token rotation', () => {
+  test('signing in again invalidates the previous page\'s token', async () => {
+    // This is correct server behaviour, and the reason the admin panel has to
+    // recover from it: a second device, or a re-login after the idle timeout,
+    // strands the token held by a page that is still open.
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      const first = await client.post('/api/v1/admin/login', { password: ADMIN_PASSWORD });
+      const tokenA = first.body.csrfToken;
+
+      client.csrf = tokenA;
+      const okBefore = await client.patch('/api/v1/admin/apps/1', { capacity: 120 });
+      assert.equal(okBefore.status, 200, 'the token works while it is current');
+
+      const second = await client.post('/api/v1/admin/login', { password: ADMIN_PASSWORD });
+      assert.notEqual(second.body.csrfToken, tokenA, 'a new sign-in must mint a new token');
+
+      client.csrf = tokenA;
+      const stale = await client.patch('/api/v1/admin/apps/1', { capacity: 110 });
+      assert.equal(stale.status, 403, 'the stranded token must be refused');
+      assert.equal(stale.body.error, 'csrf_invalid');
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('the current token can always be recovered from the session endpoint', async () => {
+    // Which is what makes the panel's silent retry possible: the page proves
+    // it holds the session cookie, and asks what the token now is.
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+      await client.post('/api/v1/admin/login', { password: ADMIN_PASSWORD });
+      await client.post('/api/v1/admin/login', { password: ADMIN_PASSWORD });
+
+      const session = await client.get('/api/v1/admin/session');
+      assert.equal(session.status, 200);
+      assert.ok(session.body.csrfToken, 'the endpoint hands back the live token');
+
+      client.csrf = session.body.csrfToken;
+      const retried = await client.patch('/api/v1/admin/apps/1', { capacity: 100 });
+      assert.equal(retried.status, 200, 'the recovered token works');
+    } finally {
+      await isolated.stop();
+    }
+  });
+});
+
+describe('signup rate limit', () => {
+  test('a shared office address is not locked out after ten signups', async () => {
+    // Everyone behind one corporate NAT shares a client address, so a low
+    // per-address budget turns colleagues away from each other's signups.
+    const isolated = await startTestServer();
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      for (let i = 0; i < 20; i += 1) {
+        const response = await client.post('/api/v1/apps/pages/waitlist', {
+          name: `동료 ${i}`,
+          email: `colleague${i}@example.com`,
+        });
+        assert.equal(response.status, 201, `signup ${i + 1} should be accepted`);
+      }
+    } finally {
+      await isolated.stop();
+    }
+  });
+
+  test('a refusal says how long to wait', async () => {
+    const isolated = await startTestServer({ RL_SIGNUP_MAX: '2' });
+    try {
+      const client = isolated.client();
+      await client.unlockGate();
+
+      let limited = null;
+      for (let i = 0; i < 6; i += 1) {
+        const response = await client.post('/api/v1/apps/pages/waitlist', {
+          name: `Person ${i}`,
+          email: `person${i}@example.com`,
+        });
+        if (response.status === 429) { limited = response; break; }
+      }
+
+      assert.ok(limited, 'the limit should eventually apply');
+      assert.equal(limited.body.error, 'rate_limited');
+      assert.ok(limited.body.retryAfterSeconds > 0, 'must say how long, not just "later"');
+      assert.ok(limited.headers.get('retry-after'), 'and say it in the header too');
+    } finally {
+      await isolated.stop();
+    }
+  });
+});

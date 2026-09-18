@@ -484,7 +484,7 @@
     chartDays: 30
   };
 
-  function api(path, options){
+  function api(path, options, isRetry){
     options = options || {};
     var headers = { 'Accept': 'application/json' };
     if (options.body) headers['Content-Type'] = 'application/json';
@@ -503,6 +503,24 @@
           showLogin();
           throw new Error(data.message || 'Session expired. Please sign in again.');
         }
+
+        /* Signing in again -- on a second device, or after the idle timeout --
+           mints a fresh CSRF token, and a page opened before that still holds
+           the old one. The session itself is perfectly valid, so the server
+           answers 403 rather than 401, and the panel looked broken for a
+           reason nothing on screen could explain. Fetch the current token and
+           retry once. If that fails too, something is genuinely wrong and the
+           original error stands. */
+        if (response.status === 403 && data.error === 'csrf_invalid' && !isRetry){
+          return fetch(window.apiUrl('/api/v1/admin/session'), { credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(session){
+              if (!session || !session.csrfToken) throw new Error(data.message);
+              state.csrf = session.csrfToken;
+              return api(path, options, true);
+            });
+        }
+
         if (!response.ok || data.ok === false){
           throw new Error(data.message || ('Request failed (' + response.status + ')'));
         }

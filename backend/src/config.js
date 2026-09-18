@@ -243,9 +243,17 @@ export function buildConfig(env = process.env) {
 
     rateLimit: {
       // Sliding-window budgets, per client IP.
+      // Signups are counted per client address, and a whole office shares
+      // one public address behind corporate NAT -- which is exactly the
+      // audience for these betas. At ten an hour the eleventh colleague to
+      // sign up is turned away for an hour, with nothing they can do about
+      // it. Sixty still stops a runaway script, and the real protections
+      // against bulk signup are elsewhere and unaffected: the site password
+      // gates the form entirely, the per-app capacity caps how many entries
+      // can exist at all, and duplicate addresses are rejected.
       signup: {
         windowMs: int('RL_SIGNUP_WINDOW_MS', 60 * 60 * 1000),
-        max: int('RL_SIGNUP_MAX', 10),
+        max: int('RL_SIGNUP_MAX', 60),
       },
       login: {
         windowMs: int('RL_LOGIN_WINDOW_MS', 15 * 60 * 1000),

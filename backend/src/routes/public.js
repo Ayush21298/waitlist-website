@@ -181,10 +181,18 @@ export function publicRoutes({ config, store, logger }) {
             message: 'Signup blocked: too many recent signups from this address',
             detail: { recent },
           });
+          // "Later" is not an instruction. The window is fixed, so the worst
+          // case is knowable, and a person sharing an office address deserves
+          // to be told how long rather than left guessing.
+          const retryAfterSeconds = Math.ceil(config.rateLimit.signup.windowMs / 1000);
+          res.setHeader('Retry-After', String(retryAfterSeconds));
           res.status(429).json({
             ok: false,
             error: 'rate_limited',
-            message: 'Too many signups from this network. Please try again later.',
+            message:
+              'Too many signups from this network in the last hour. ' +
+              'Please try again a little later, or ask us to add you directly.',
+            retryAfterSeconds,
           });
           return;
         }
