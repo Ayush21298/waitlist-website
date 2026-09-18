@@ -356,7 +356,15 @@ try {
   const remainingBefore = Number((await page.locator('#remaining').innerText()).trim());
   const cdotsCapacityLabel = (await page.locator('.counter .total').innerText()).trim();
   check('the counter loaded places remaining from the backend', remainingBefore > 0, String(remainingBefore));
-  check('the capacity comes from the backend too', cdotsCapacityLabel === '/100', cdotsCapacityLabel);
+  // Compared against what the server actually says rather than a literal.
+  // The capacity is editable from the admin panel, so a hardcoded figure is
+  // asserting the fixture rather than the behaviour.
+  const cdotsCapacity = await page.evaluate(async () => {
+    const r = await fetch(window.apiUrl('/api/v1/apps/cdots/count'), { credentials: 'same-origin' });
+    return (await r.json()).capacity;
+  });
+  check('the capacity comes from the backend too',
+    cdotsCapacityLabel === `/${cdotsCapacity}`, `${cdotsCapacityLabel} vs server ${cdotsCapacity}`);
 
   // An invalid address must shake rather than submit.
   await page.fill('#email', 'not-an-email');
